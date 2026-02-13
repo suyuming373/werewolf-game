@@ -509,9 +509,20 @@ def on_day_vote(data):
     player = game.players.get(request.sid)
 
     if not player or not player['alive']: return
+    
+    # [新增] 嚴格檢查 1：階段必須正確
+    if game.phase != 'day_vote':
+        return
 
-    # [安全檢查] 如果是 PK 局，且投票者是 PK 台上的人，不准他投 (防止後端數據汙染)
+    # [新增] 嚴格檢查 2：鎖票 (禁止改票)
+    # 如果這個人已經在投票名單裡，直接無視他的第二次請求
+    if request.sid in game.day_votes:
+        emit('action_result', {'msg': '❌ 你已經投過票了！無法更改。'}, room=request.sid)
+        return
+
+    # [新增] 嚴格檢查 3：PK 局當事人不能投 (這原本就有，保留著)
     if game.is_pk_round and player['name'] in game.pk_targets:
+        emit('action_result', {'msg': '❌ 你是 PK 對象，不能投票！'}, room=request.sid)
         return
 
     game.day_votes[request.sid] = data['target']

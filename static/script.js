@@ -439,13 +439,21 @@ function handlePlayerClick(target) {
     if (!isAlive && currentPhase !== 'shoot') return alert("你已經死了");
     
     if (currentPhase === 'day_vote') {
-        socket.emit('day_vote', {room: myRoom, target: target});
-        addLog(`投給了 ${target}`);
-        document.querySelectorAll('.player-btn').forEach(b => b.disabled = true);
-        return;
-    }
-    
-    if (currentPhase === 'shoot') {
+        if (confirm(`確定要投給 ${targetName} 嗎？(投出後無法更改)`)) {
+            socket.emit('day_vote', {room: myRoom, target: targetName});
+            
+            // [新增] 鎖票特效：立刻鎖定所有按鈕
+            document.querySelectorAll('.player-btn').forEach(btn => {
+                btn.disabled = true;
+                btn.style.opacity = "0.5"; // 讓按鈕變灰，視覺上知道不能按了
+            });
+            
+            addLog(`[系統] 你已投票給 ${targetName}。等待其他人投票...`);
+        }
+    } else if (currentPhase === 'day_speak') {
+        // ... (發言階段不能按，這段維持原樣)
+        alert("現在是發言階段，請專心討論！");
+    } else if (currentPhase === 'shoot') {
         if (confirm(`確定要帶走 ${target} 嗎？`)) {
             socket.emit('shoot_action', {room: myRoom, target: target});
             document.querySelectorAll('.player-btn').forEach(b => b.disabled = true);
