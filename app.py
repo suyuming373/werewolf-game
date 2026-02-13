@@ -262,44 +262,58 @@ def on_join(data):
     
     join_room(room)
     
-    # 如果房間不存在，建立新房間
     if room not in games:
         games[room] = Game(room)
     
     game = games[room]
     
-    # --- 安全版邏輯 (先不檢查斷線重連，確保能進去) ---
+    # --- [關鍵修正] 防分身邏輯 ---
     
-    # 檢查是否名字重複 (簡單擋一下)
-    for p in game.players.values():
+    # 1. 先搜尋房間裡有沒有「同名」的舊玩家
+    target_old_sid = None
+    for sid, p in game.players.items():
         if p['name'] == username:
-            # 如果名字重複，暫時允許加入 (避免卡死)，或者你可以 return
-            pass 
-
-    # 建立新玩家資料
-    game.players[request.sid] = {
-        'name': username,
-        'role': None,
-        'alive': True,
-        'number': 0,
-        'is_host': False
-    }
+            target_old_sid = sid
+            break
     
-    # 房主判定
-    if len(game.players) == 1:
-        game.host_sid = request.sid
-        game.players[request.sid]['is_host'] = True
-        emit('join_success', {'room': room, 'is_host': True}, room=request.sid)
-    else:
-        # 檢查有沒有房主，沒有就補位
-        if game.host_sid is None:
+    # 2. 判斷處理
+    if target_old_sid:
+        # A. 發現重複名字 -> 視為「斷線重連」
+        # 把舊資料搬過來 (繼承身分、生死狀態)
+        old_data = game.players.pop(target_old_sid) # 刪除舊的 SID
+        game.players[request.sid] = old_data        # 綁定新的 SID
+        
+        # 如果舊 ID 是房主，權限也要轉移
+        if game.host_sid == target_old_sid:
             game.host_sid = request.sid
-            game.players[request.sid]['is_host'] = True
-            emit('join_success', {'room': room, 'is_host': True}, room=request.sid)
-        else:
-            emit('join_success', {'room': room, 'is_host': False}, room=request.sid)
+            
+        print(f"♻️ {username} 重連成功 (合併資料)")
+        
+    else:
+        # B. 沒發現重複 -> 視為「新玩家加入」
+        game.players[request.sid] = {
+            'name': username,
+            'role': None,
+            'alive': True,
+            'number': 0,
+            'is_host': False
+        }
+        
+    # --- 3. 房主檢查 (防呆) ---
+    # 如果房間有人，但沒有房主 (可能房主剛剛斷線斷壞了)，把現在這個人升為房主
+    if game.host_sid not in game.players:
+        game.host_sid = request.sid
+        
+    # 更新該玩家的 is_host 狀態
+    game.players[request.sid]['is_host'] = (game.host_sid == request.sid)
 
-    # 廣播更新
+    # --- 4. 回傳成功訊息 ---
+    emit('join_success', {
+        'room': room, 
+        'is_host': (game.host_sid == request.sid)
+    }, room=request.sid)
+
+    # --- 5. 廣播更新列表 ---
     emit('update_players', {'players': game.get_player_list()}, room=room)
 
 # [新增] 踢人功能
