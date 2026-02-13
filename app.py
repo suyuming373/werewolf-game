@@ -686,5 +686,49 @@ def on_go_night(data):
     emit('phase_change', {'phase': 'night', 'potions': game.witch_potions}, room=room)
     auto_ready_passives(room)
 
+@socketio.on('disconnect')
+def on_disconnect():
+    print(f"❌ 斷線偵測: {request.sid}")
+    
+    # 遍歷所有房間，找到這個 SID 所屬的房間
+    for room_id, game in games.items():
+        if request.sid in game.players:
+            player = game.players[request.sid]
+            name = player['name']
+            print(f"   -> 玩家 {name} 離開了 {room_id}")
+
+            # 1. 移交房主權限 (如果離開的是房主)
+            if game.host_sid == request.sid:
+                game.host_sid = None # 先清空
+                game.players[request.sid]['is_host'] = False
+                
+                # 尋找繼承人：找還在線上的其他玩家
+                # 過濾掉自己，並選第一個
+                remaining_sids = [sid for sid in game.players if sid != request.sid]
+                
+                if remaining_sids:
+                    new_host_sid = remaining_sids[0] # 抓第一個人
+                    game.host_sid = new_host_sid
+                    game.players[new_host_sid]['is_host'] = True
+                    print(f"   👑 房主已轉移給 {game.players[new_host_sid]['name']}")
+                    
+                    # 通知那位幸運兒 (讓他看到設定選單)
+                    emit('join_success', {'room': room_id, 'is_host': True}, room=new_host_sid)
+
+            # 2. 處理玩家資料
+            # 情況 A: 遊戲還沒開始 (Setup) -> 直接刪除玩家
+            if game.phase == 'setup':
+                del game.players[request.sid]
+                # 廣播更新列表
+                emit('update_players', {'players': game.get_player_list()}, room=room_id)
+                
+            # 情況 B: 遊戲已經開始 -> 保留資料 (等待重連)
+            else:
+                print(f"   -> 遊戲進行中，保留 {name} 的資料")
+                # 雖然保留資料，但我們可以更新列表顯示他「斷線中」(選擇性功能)
+                # 這裡我們先維持原樣，不刪除他
+            
+            break
+
 if __name__ == '__main__':
     socketio.run(app, debug=True)
