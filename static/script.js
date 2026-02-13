@@ -619,3 +619,15 @@ window.onload = function() {
         joinGame(); 
     }
 };
+
+// [新增] 登出 / 切換帳號
+function logout() {
+    if (confirm("確定要登出並切換帳號嗎？")) {
+        // 1. 清除瀏覽器記憶
+        localStorage.removeItem('ww_username');
+        localStorage.removeItem('ww_room');
+        
+        // 2. 重新整理網頁 (這時因為沒有記憶，就會停在登入頁了)
+        location.reload();
+    }
+}
