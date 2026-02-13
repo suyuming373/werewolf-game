@@ -348,6 +348,7 @@ def on_join(data):
     emit('update_players', {'players': game.get_player_list()}, room=room)
 
 # [新增] 踢人功能
+# [新增] 踢人功能
 @socketio.on('kick_player')
 def on_kick(data):
     room = data['room']
@@ -410,27 +411,26 @@ def on_start(data):
     if room in games:
         game = games[room]
         
+        # 權限檢查
         if request.sid != game.host_sid: return 
 
         if game.phase == 'setup':
             current_player_count = len(game.players)
             
             total_roles = 0
-            # [修正] 嚴格檢查設定值
+            # 計算總角色數
             for name, count in settings.items():
                 try:
                     c = int(count)
-                    # 1. 檢查是否為負數
                     if c < 0:
-                        emit('start_failed', {'msg': f'設定錯誤：【{name}】的數量不能是負數！'}, room=request.sid)
+                        emit('start_failed', {'msg': f'設定錯誤：【{name}】數量不能為負數！'}, room=request.sid)
                         return
                     total_roles += c
                 except:
-                    # 防止有人傳非數字進來
                     emit('start_failed', {'msg': '設定錯誤：請輸入有效的數字！'}, room=request.sid)
                     return
             
-            # 2. 檢查總人數是否吻合
+            # [關鍵] 人數檢查
             if current_player_count != total_roles:
                 msg = f"人數不符！無法開始。\n\n房間人數：{current_player_count} 人\n設定角色：{total_roles} 人"
                 if current_player_count > total_roles:
@@ -438,9 +438,11 @@ def on_start(data):
                 else:
                     msg += "\n(請減少角色或是等待更多人加入)"
                 
+                # 發送錯誤訊息給房主
                 emit('start_failed', {'msg': msg}, room=request.sid)
                 return 
 
+            # 一切正常，開始遊戲
             game.assign_roles(settings)
             game.phase = 'night'
             emit('phase_change', {'phase': 'night', 'potions': game.witch_potions}, room=room)

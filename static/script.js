@@ -4,44 +4,68 @@ let myName = "";
 let myRole = "";
 let isAlive = true; 
 let currentPhase = "setup"; 
-let amIHost = false; // [修復] 這裡補上了房主變數宣告！
+let amIHost = false; 
 
-// [新增] 自製彈窗函式
+// ================== 自製彈窗與提示工具 ==================
+
+// 顯示確認視窗 (取代 confirm)
 function showConfirm(msg, callback) {
     const modal = document.getElementById('custom-modal');
+    // 防呆：如果 HTML 裡還沒加 modal 結構，先 fallback 回原生 confirm
+    if (!modal) {
+        if (confirm(msg)) {
+            if (callback) callback();
+        }
+        return;
+    }
+
     document.getElementById('modal-message').innerText = msg;
     modal.classList.remove('hidden');
 
     const confirmBtn = document.getElementById('btn-modal-confirm');
     const cancelBtn = document.getElementById('btn-modal-cancel');
 
-    // 清除舊的監聽器 (避免重複綁定)
+    // 複製按鈕以移除舊的 Event Listener
     let newConfirm = confirmBtn.cloneNode(true);
     confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
     
-    // 綁定新的點擊事件
+    let newCancel = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+
+    // 綁定確認事件
     newConfirm.onclick = () => {
         closeModal();
-        callback(); // 執行傳進來的動作
+        if (callback) callback();
+    };
+
+    // 綁定取消事件
+    newCancel.onclick = () => {
+        closeModal();
     };
     
-    // 如果只需要顯示訊息 (沒有 callback)，就隱藏取消按鈕
+    // 如果沒有 callback，代表只是純訊息提示 (類似 alert)
     if (!callback) {
-        cancelBtn.classList.add('hidden');
+        newCancel.classList.add('hidden'); // 隱藏取消鈕
         newConfirm.innerText = "知道了";
     } else {
-        cancelBtn.classList.remove('hidden');
+        newCancel.classList.remove('hidden'); // 顯示取消鈕
         newConfirm.innerText = "確定";
     }
 }
 
 function closeModal() {
-    document.getElementById('custom-modal').classList.add('hidden');
+    const modal = document.getElementById('custom-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
-// [新增] 自製 Toast 函式 (取代 alert)
+// 顯示 Toast 提示 (取代 alert)
 function showToast(msg) {
     const toast = document.getElementById('toast-message');
+    if (!toast) {
+        alert(msg); // Fallback
+        return;
+    }
+    
     toast.innerText = msg;
     toast.classList.remove('hidden');
     toast.style.opacity = 1;
@@ -53,23 +77,31 @@ function showToast(msg) {
     }, 3000);
 }
 
-// ---------------- 按鈕功能區 ----------------
+// ================== 按鈕功能區 ==================
 
 function joinGame() {
-    const username = document.getElementById('username').value;
-    const room = document.getElementById('room').value;
+    const usernameInput = document.getElementById('username').value;
+    const roomInput = document.getElementById('room').value;
+
+    // [修復] 去除前後空白，防止手機輸入法導致的「幽靈房間」
+    const username = usernameInput ? usernameInput.trim() : "";
+    const room = roomInput ? roomInput.trim() : "";
 
     if (username && room) {
         myName = username;
         myRoom = room;
         
-        // 把名字和房號存在瀏覽器裡 (F5 重連用)
+        // 更新 UI 顯示正確的去空白文字
+        document.getElementById('username').value = username;
+        document.getElementById('room').value = room;
+        
+        // 存入快取
         localStorage.setItem('ww_username', username);
         localStorage.setItem('ww_room', room);
 
         socket.emit('join', {username: username, room: room});
     } else {
-        alert("請輸入暱稱和房號！");
+        showToast("⚠️ 請輸入暱稱和房號！(不能只有空白)");
     }
 }
 
@@ -89,14 +121,18 @@ function startGame() {
 function confirmTurn() { 
     if (!isAlive) return;
     socket.emit('confirm_turn', {room: myRoom}); 
-    document.getElementById('btn-end-turn').disabled = true; 
-    document.getElementById('btn-end-turn').innerText = "已確認 / 等待其他玩家..."; 
+    
+    const btn = document.getElementById('btn-end-turn');
+    if (btn) {
+        btn.disabled = true; 
+        btn.innerText = "已確認 / 等待其他玩家..."; 
+    }
 }
 
 function startVoting() { socket.emit('start_voting', {room: myRoom}); }
 function goToNight() { socket.emit('go_to_night', {room: myRoom}); }
 
-// ---------------- 女巫藥水邏輯 ----------------
+// ================== 女巫藥水邏輯 ==================
 
 let selectedAction = null; // 記錄目前選了什麼藥水
 
@@ -105,10 +141,11 @@ function usePotion(type) {
 
     if (type === 'save') {
         // --- 解藥邏輯 ---
-        const victim = document.getElementById('victim-name').innerText;
+        const victimElem = document.getElementById('victim-name');
+        const victim = victimElem ? victimElem.innerText : "";
         
         // 防呆：如果還不知道死者，不能亂按
-        if (victim === "(等待狼人行動...)" || victim === "未知") {
+        if (!victim || victim === "(等待狼人行動...)" || victim === "未知") {
             showToast("⚠️ 還不知道狼人殺了誰，無法使用解藥！");
             return;
         }
@@ -118,8 +155,11 @@ function usePotion(type) {
             socket.emit('night_action', {room: myRoom, type: 'witch_save', target: victim});
             
             // 鎖定按鈕
-            document.getElementById('btn-save').disabled = true;
-            document.getElementById('btn-save').innerText = "已使用解藥";
+            const saveBtn = document.getElementById('btn-save');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerText = "已使用解藥";
+            }
             showToast("已送出解藥指令");
         });
 
@@ -131,8 +171,10 @@ function usePotion(type) {
         
         // 視覺回饋：讓毒藥按鈕變色，提示正在使用中
         const pBtn = document.getElementById('btn-poison');
-        pBtn.innerText = "請選擇目標...";
-        pBtn.style.border = "2px solid white";
+        if (pBtn) {
+            pBtn.innerText = "請選擇目標...";
+            pBtn.style.border = "2px solid white";
+        }
         
         // 解鎖所有頭像 (讓女巫可以選人)
         document.querySelectorAll('.player-btn').forEach(btn => {
@@ -143,41 +185,57 @@ function usePotion(type) {
     }
 }
 
-function resetActionButtons() {
-    // 重置按鈕狀態
+// 女巫行動後鎖定介面 (防止重複操作)
+function lockWitchUI() {
     selectedAction = null;
-    document.getElementById('btn-save').innerText = "使用解藥";
+    
+    // 恢復所有頭像鎖定狀態 (如果是晚上)
+    document.querySelectorAll('.player-btn').forEach(btn => {
+        // 這裡不直接 disable，因為可能還需要點擊查看資訊，但恢復預設樣式
+        btn.style.border = "none"; 
+    });
 }
 
-// 棄票函式
+// ================== 其他操作功能 ==================
+
 function voteAbstain() {
     if (!isAlive) return;
-    // 送出目標為 "棄票"
-    socket.emit('day_vote', {room: myRoom, target: '棄票'});
-    addLog("你選擇了棄票");
-    
-    // 鎖定所有按鈕
-    document.querySelectorAll('.player-btn').forEach(b => b.disabled = true);
-    document.getElementById('btn-abstain').disabled = true;
+    showConfirm("確定要棄票嗎？", () => {
+        socket.emit('day_vote', {room: myRoom, target: '棄票'});
+        addLog("你選擇了棄票");
+        
+        // 鎖定所有按鈕
+        document.querySelectorAll('.player-btn').forEach(b => b.disabled = true);
+        const abstainBtn = document.getElementById('btn-abstain');
+        if (abstainBtn) abstainBtn.disabled = true;
+    });
 }
 
-// 踢人函式
 function kickPlayer(targetName) {
     showConfirm(`確定要踢出 ${targetName} 嗎？`, () => {
         socket.emit('kick_player', {room: myRoom, target_name: targetName});
     });
 }
 
-// 重置房間
 function resetGame() {
-    if (confirm("確定要強制重置房間嗎？\n(所有遊戲進度將會遺失)")) {
+    showConfirm("確定要強制重置房間嗎？\n(所有遊戲進度將會遺失)", () => {
         socket.emit('reset_game', {room: myRoom});
-    }
+    });
 }
 
-// ---------------- 監聽與邏輯區 ----------------
+function logout() {
+    showConfirm("確定要登出並切換帳號嗎？", () => {
+        // 1. 清除瀏覽器記憶
+        localStorage.removeItem('ww_username');
+        localStorage.removeItem('ww_room');
+        
+        // 2. 重新整理網頁
+        location.reload();
+    });
+}
 
-// [修復] 加入成功 (這一段原本少了，導致進不去大廳)
+// ================== Socket 監聽與邏輯區 ==================
+
 socket.on('join_success', (data) => {
     console.log("加入成功！房主身分:", data.is_host);
     amIHost = data.is_host;
@@ -186,13 +244,16 @@ socket.on('join_success', (data) => {
     document.getElementById('login-view').classList.add('hidden');
     document.getElementById('lobby-view').classList.remove('hidden');
 
-    // 如果我是房主，顯示設定區；如果是路人，顯示等待訊息
+    // 根據身分顯示不同介面
+    const hostSettings = document.getElementById('host-settings');
+    const guestMsg = document.getElementById('guest-waiting-msg');
+
     if (amIHost) {
-        document.getElementById('host-settings').classList.remove('hidden');
-        document.getElementById('guest-waiting-msg').classList.add('hidden');
+        if (hostSettings) hostSettings.classList.remove('hidden');
+        if (guestMsg) guestMsg.classList.add('hidden');
     } else {
-        document.getElementById('host-settings').classList.add('hidden');
-        document.getElementById('guest-waiting-msg').classList.remove('hidden');
+        if (hostSettings) hostSettings.classList.add('hidden');
+        if (guestMsg) guestMsg.classList.remove('hidden');
     }
 });
 
@@ -208,18 +269,21 @@ socket.on('wolf_teammates', (data) => {
     addLog(msg, "wolf-msg"); 
 });
 
+// [修復] 使用 showConfirm 取代 alert
 socket.on('kicked', (data) => {
-    alert(data.msg);
-    location.reload(); 
+    showConfirm(data.msg, () => {
+        location.reload(); 
+    });
 });
 
 socket.on('start_failed', (data) => {
-    alert(data.msg);
+    showConfirm(data.msg);
 });
 
 socket.on('game_reset', (data) => {
-    alert(data.msg);
-    location.reload(); 
+    showConfirm(data.msg, () => {
+        location.reload(); 
+    });
 });
 
 socket.on('public_vote_log', (data) => {
@@ -231,84 +295,91 @@ socket.on('update_players', (data) => {
     const me = data.players.find(p => p.name === myName);
     if (me) {
         isAlive = me.alive;
-        amIHost = me.is_host; // 同步房主權限
+        amIHost = me.is_host; 
         
-        // 如果重連回來發現自己死了，更新介面
         if (!isAlive) {
-            document.getElementById('my-role-info').innerText += " (已死亡)";
-            document.getElementById('my-role-info').style.color = "gray";
+            const roleInfo = document.getElementById('my-role-info');
+            if (roleInfo && !roleInfo.innerText.includes("(已死亡)")) {
+                roleInfo.innerText += " (已死亡)";
+                roleInfo.style.color = "gray";
+            }
             // 鎖定按鈕
             document.querySelectorAll('.player-btn').forEach(b => b.disabled = true);
         }
     }
 
+    // 更新大廳列表
     const list = document.getElementById('player-list');
-    list.innerHTML = "";
+    if (list) {
+        list.innerHTML = "";
+        data.players.forEach(p => {
+            let li = document.createElement('li');
+            let text = p.number > 0 ? `[${p.number}] ${p.name}` : p.name;
+            if (p.is_host) text += " 👑";
+            li.innerText = text;
+
+            // 踢人按鈕 (只有房主看得到，且不能踢自己，且必須在準備階段)
+            if (amIHost && p.name !== myName && currentPhase === 'setup') {
+                let kickBtn = document.createElement('button');
+                kickBtn.innerText = "❌";
+                kickBtn.style.marginLeft = "10px";
+                kickBtn.style.padding = "2px 6px";
+                kickBtn.style.fontSize = "0.8em";
+                kickBtn.style.background = "#d32f2f";
+                kickBtn.style.width = "auto"; 
+                kickBtn.onclick = () => kickPlayer(p.name);
+                li.appendChild(kickBtn);
+            }
+            list.appendChild(li);
+        });
+    }
+
+    // 更新房主設定顯示狀態
+    const hostSettings = document.getElementById('host-settings');
+    const guestMsg = document.getElementById('guest-waiting-msg');
     
-    // 更新等待區列表
-    data.players.forEach(p => {
-        let li = document.createElement('li');
-        let text = p.number > 0 ? `[${p.number}] ${p.name}` : p.name;
-        
-        if (p.is_host) text += " 👑";
-        
-        li.innerText = text;
-
-        // 踢人按鈕 (只有房主看得到，且不能踢自己，且必須在準備階段)
-        if (amIHost && p.name !== myName && currentPhase === 'setup') {
-            let kickBtn = document.createElement('button');
-            kickBtn.innerText = "❌";
-            kickBtn.style.marginLeft = "10px";
-            kickBtn.style.padding = "2px 6px";
-            kickBtn.style.fontSize = "0.8em";
-            kickBtn.style.background = "#d32f2f";
-            kickBtn.style.width = "auto"; 
-            kickBtn.onclick = () => kickPlayer(p.name);
-            li.appendChild(kickBtn);
-        }
-
-        list.appendChild(li);
-    });
-
-    // 如果在大廳，根據是否為房主顯示設定
     if (currentPhase === 'setup') {
         if (amIHost) {
-            document.getElementById('host-settings').classList.remove('hidden');
-            document.getElementById('guest-waiting-msg').classList.add('hidden');
+            if(hostSettings) hostSettings.classList.remove('hidden');
+            if(guestMsg) guestMsg.classList.add('hidden');
         } else {
-            document.getElementById('host-settings').classList.add('hidden');
-            document.getElementById('guest-waiting-msg').classList.remove('hidden');
+            if(hostSettings) hostSettings.classList.add('hidden');
+            if(guestMsg) guestMsg.classList.remove('hidden');
         }
     }
 
+    // 更新遊戲中玩家按鈕
     const gameList = document.getElementById('game-players');
-    gameList.innerHTML = "";
-    data.players.forEach(p => {
-        if (p.alive) {
-            let btn = document.createElement('button');
-            btn.innerHTML = `<span class="number-badge">${p.number}</span> ${p.name}`;
-            btn.className = "player-btn";
-            btn.onclick = () => handlePlayerClick(p.name);
-            // 如果是白天發言階段，按鈕要鎖住
-            if (currentPhase === 'day_speak') btn.disabled = true;
-            gameList.appendChild(btn);
-        } else {
-            let div = document.createElement('div');
-            div.innerHTML = `<span class="number-badge" style="background:#555">${p.number}</span> ${p.name} (死亡)`;
-            div.className = "dead";
-            div.style.padding = "10px";
-            gameList.appendChild(div);
-        }
-    });
+    if (gameList) {
+        gameList.innerHTML = "";
+        data.players.forEach(p => {
+            if (p.alive) {
+                let btn = document.createElement('button');
+                btn.innerHTML = `<span class="number-badge">${p.number}</span> ${p.name}`;
+                btn.className = "player-btn";
+                btn.onclick = () => handlePlayerClick(p.name);
+                // 如果是白天發言階段，按鈕要鎖住
+                if (currentPhase === 'day_speak') btn.disabled = true;
+                gameList.appendChild(btn);
+            } else {
+                let div = document.createElement('div');
+                div.innerHTML = `<span class="number-badge" style="background:#555">${p.number}</span> ${p.name} (死亡)`;
+                div.className = "dead";
+                div.style.padding = "10px";
+                gameList.appendChild(div);
+            }
+        });
+    }
 });
 
 socket.on('game_over', (data) => {
-    let msg = `🏆 遊戲結束！\n\n${data.winner}！！！\n\n=== 角色揭曉 ===\n`;
+    let msg = `🏆 遊戲結束！\n\n獲勝陣營：${data.winner}！！！\n\n=== 角色揭曉 ===\n`;
     for (const [name, role] of Object.entries(data.roles)) {
         msg += `${name}: ${role}\n`;
     }
-    alert(msg);
-    location.reload(); 
+    showConfirm(msg, () => {
+        location.reload(); 
+    });
 });
 
 socket.on('game_info', (data) => {
@@ -318,10 +389,13 @@ socket.on('game_info', (data) => {
     document.getElementById('game-view').classList.remove('hidden');
     document.getElementById('my-role-info').innerText = `[${data.number}號] 身分：${myRole}`;
     
-    if (myRole === '女巫') {
-        document.getElementById('witch-area').classList.remove('hidden');
+    const witchArea = document.getElementById('witch-area');
+    if (myRole === '女巫' && witchArea) {
+        witchArea.classList.remove('hidden');
         document.getElementById('victim-name').innerText = "等待狼人行動...";
-        document.getElementById('btn-save').disabled = true;
+        
+        const saveBtn = document.getElementById('btn-save');
+        if(saveBtn) saveBtn.disabled = true;
     }
     addLog(`遊戲開始！你是 ${myRole}`);
 });
@@ -346,10 +420,10 @@ socket.on('phase_change', (data) => {
     const guardArea = document.getElementById('guard-area');
 
     // 1. 重置所有按鈕與區塊狀態
-    endBtn.classList.add('hidden');
-    voteBtn.classList.add('hidden');
-    nightBtn.classList.add('hidden');
-    abstainBtn.classList.add('hidden');
+    if(endBtn) endBtn.classList.add('hidden');
+    if(voteBtn) voteBtn.classList.add('hidden');
+    if(nightBtn) nightBtn.classList.add('hidden');
+    if(abstainBtn) abstainBtn.classList.add('hidden');
     
     if (witchArea) witchArea.classList.add('hidden');
     if (guardArea) guardArea.classList.add('hidden');
@@ -360,28 +434,35 @@ socket.on('phase_change', (data) => {
         addLog("=== 進入夜晚 ===");
         
         if ((myRole === '女巫' || myRole === '守衛') && isAlive) {
-            endBtn.classList.remove('hidden');
-            endBtn.disabled = false;
-            endBtn.innerText = "結束我的回合";
+            if(endBtn) {
+                endBtn.classList.remove('hidden');
+                endBtn.disabled = false;
+                endBtn.innerText = "結束我的回合";
+            }
         }
         
         document.querySelectorAll('.player-btn').forEach(b => b.disabled = false);
 
         if (myRole === '女巫') {
             if (witchArea) witchArea.classList.remove('hidden');
-            document.getElementById('victim-name').innerText = "等待狼人行動...";
+            const vName = document.getElementById('victim-name');
+            if(vName) vName.innerText = "等待狼人行動...";
+            
             const saveBtn = document.getElementById('btn-save');
-            saveBtn.disabled = true;
-            if (data.potions && !data.potions.heal) {
-                saveBtn.innerText = "解藥已用完";
-            } else {
-                saveBtn.innerText = "使用解藥";
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                if (data.potions && !data.potions.heal) {
+                    saveBtn.innerText = "解藥已用完";
+                } else {
+                    saveBtn.innerText = "使用解藥";
+                }
             }
         }
 
         if (myRole === '守衛') {
             if (guardArea) guardArea.classList.remove('hidden');
-            document.getElementById('guard-target').innerText = "尚未選擇";
+            const gTarget = document.getElementById('guard-target');
+            if(gTarget) gTarget.innerText = "尚未選擇";
         }
 
     } else if (data.phase === 'day_speak') {
@@ -396,7 +477,7 @@ socket.on('phase_change', (data) => {
             }
         }
 
-        if (isAlive) voteBtn.classList.remove('hidden');
+        if (isAlive && voteBtn) voteBtn.classList.remove('hidden');
         document.querySelectorAll('.player-btn').forEach(b => b.disabled = true);
 
     } else if (data.phase === 'day_vote') {
@@ -405,7 +486,7 @@ socket.on('phase_change', (data) => {
         addLog("請點擊按鈕投票...");
         document.querySelectorAll('.player-btn').forEach(b => b.disabled = false);
 
-        if (isAlive) {
+        if (isAlive && abstainBtn) {
             abstainBtn.classList.remove('hidden');
             abstainBtn.disabled = false;
         }
@@ -419,20 +500,22 @@ socket.on('phase_change', (data) => {
 });
 
 socket.on('your_turn_to_shoot', () => {
-    alert("你死亡了！請選擇一名玩家帶走。");
-    addLog("請點擊一名玩家開槍！");
-    document.querySelectorAll('.player-btn').forEach(b => b.disabled = false);
+    showConfirm("你死亡了！\n請點擊一名玩家開槍帶走他。", () => {
+        addLog("請點擊一名玩家開槍！");
+        document.querySelectorAll('.player-btn').forEach(b => b.disabled = false);
+    });
 });
 
 socket.on('vote_result_final', () => {
-    document.getElementById('btn-go-night').classList.remove('hidden');
+    const nightBtn = document.getElementById('btn-go-night');
+    if(nightBtn) nightBtn.classList.remove('hidden');
 });
 
 socket.on('vote_pk', (data) => {
     const amIPKTarget = data.targets.includes(myName);
 
     if (amIPKTarget) {
-        alert(`⚖️ ${data.msg}\n\n【注意】你是 PK 對象，本輪無法投票！`);
+        showConfirm(`⚖️ ${data.msg}\n\n【注意】你是 PK 對象，本輪無法投票！`);
         addLog(`[系統] 平票 PK：你無法投票。`);
         document.querySelectorAll('.player-btn').forEach(b => {
             b.disabled = true;
@@ -441,7 +524,7 @@ socket.on('vote_pk', (data) => {
         const abstainBtn = document.getElementById('btn-abstain');
         if (abstainBtn) abstainBtn.disabled = true;
     } else {
-        alert(`⚖️ ${data.msg}\n\n請在平票者之間重新投票！`);
+        showConfirm(`⚖️ ${data.msg}\n\n請在平票者之間重新投票！`);
         addLog(`[系統] ${data.msg}`);
 
         document.querySelectorAll('.player-btn').forEach(b => {
@@ -469,22 +552,25 @@ socket.on('vote_pk', (data) => {
 socket.on('vote_result', (data) => {
     addLog(`投票結果：${data.victim}`);
     document.querySelectorAll('.player-btn').forEach(b => b.disabled = true);
-    document.getElementById('btn-abstain').disabled = true;
+    const abstainBtn = document.getElementById('btn-abstain');
+    if(abstainBtn) abstainBtn.disabled = true;
 });
 
-socket.on('wolf_notification', (data) => { if(myRole.includes('狼') && isAlive) addLog(`[狼隊] ${data.msg}`); });
+socket.on('wolf_notification', (data) => { 
+    if(myRole.includes('狼') && isAlive) addLog(`[狼隊] ${data.msg}`); 
+});
+
 socket.on('witch_vision', (data) => {
-    if (!isAlive) return; // 死人看不到
+    if (!isAlive) return;
     
     console.log("女巫感應收到:", data);
     document.getElementById('victim-name').innerText = data.victim;
     
     const btn = document.getElementById('btn-save');
-    // [重點] 只有當解藥沒用過時，才解鎖按鈕
-    if (btn.innerText !== "解藥已用完") {
+    if (btn && btn.innerText !== "解藥已用完") {
         btn.disabled = false;
-        btn.innerText = "使用解藥"; // 重置文字
-        btn.style.background = "#e040fb"; // 恢復顏色
+        btn.innerText = "使用解藥"; 
+        btn.style.background = "#e040fb"; 
     }
     
     addLog(`[感應] 狼人目標是 ${data.victim}。`, "witch-vision");
@@ -497,11 +583,14 @@ socket.on('force_confirm', (data) => {
     if (endBtn) endBtn.disabled = true;
 });
 
-socket.on('seer_result', (data) => { alert(`查驗結果: ${data.target} 是 ${data.identity}`); });
+socket.on('seer_result', (data) => { 
+    showConfirm(`🔮 查驗結果：\n\n${data.target} 是 【${data.identity}】`);
+});
+
 socket.on('action_result', (data) => { addLog(`[系統] ${data.msg}`); });
 
-// 處理玩家點擊頭像 (核心邏輯)
-// 處理玩家點擊頭像 (改用自製彈窗版)
+// ================== 玩家點擊邏輯 (核心) ==================
+
 function handlePlayerClick(targetName) {
     console.log(`點擊: ${targetName}, 階段: ${currentPhase}, 存活: ${isAlive}`);
 
@@ -547,14 +636,20 @@ function handlePlayerClick(targetName) {
                 
                 // 重置狀態
                 selectedAction = null;
-                document.getElementById('btn-poison').disabled = true;
-                document.getElementById('btn-poison').innerText = "已使用毒藥";
-                document.getElementById('btn-poison').style.border = "none";
+                const pBtn = document.getElementById('btn-poison');
+                if(pBtn) {
+                    pBtn.disabled = true;
+                    pBtn.innerText = "已使用毒藥";
+                    pBtn.style.border = "none";
+                }
                 
-                // 鎖定頭像
+                // 恢復 UI
                 lockWitchUI(); 
             });
             return;
+        }
+        else if (myRole === '女巫') {
+             showToast("⚠️ 請先點擊上方的「解藥」或「毒藥」按鈕，再選擇頭像！");
         }
         else if (myRole === '預言家') {
             socket.emit('night_action', {room: myRoom, type: 'seer_check', target: targetName});
@@ -574,11 +669,14 @@ function handlePlayerClick(targetName) {
 
 function addLog(msg, className='') { 
     const log = document.getElementById('log-area'); 
-    log.innerHTML += `<div class="${className}">${msg}</div>`; 
-    log.scrollTop = log.scrollHeight; 
+    if(log) {
+        log.innerHTML += `<div class="${className}">${msg}</div>`; 
+        log.scrollTop = log.scrollHeight; 
+    }
 }
 
-// 斷線自動重連機制
+// ================== 系統連線處理 ==================
+
 socket.on('disconnect', () => {
     console.log("斷線了...");
     addLog("[系統] 連線不穩，正在嘗試重連...");
@@ -603,8 +701,7 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
-// 網頁載入時自動重連
-// 網頁載入時
+// 網頁載入時自動重連 (非手動登出時)
 window.onload = function() {
     const savedName = localStorage.getItem('ww_username');
     const savedRoom = localStorage.getItem('ww_room');
@@ -614,20 +711,6 @@ window.onload = function() {
         document.getElementById('username').value = savedName;
         document.getElementById('room').value = savedRoom;
         
-        // [新增] 只有在「非手動登出」的情況下才自動加入
-        // 這裡直接執行 joinGame() 就可以實現「F5 自動回房」
         joinGame(); 
     }
 };
-
-// [新增] 登出 / 切換帳號
-function logout() {
-    if (confirm("確定要登出並切換帳號嗎？")) {
-        // 1. 清除瀏覽器記憶
-        localStorage.removeItem('ww_username');
-        localStorage.removeItem('ww_room');
-        
-        // 2. 重新整理網頁 (這時因為沒有記憶，就會停在登入頁了)
-        location.reload();
-    }
-}
