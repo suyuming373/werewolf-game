@@ -262,98 +262,45 @@ def on_join(data):
     
     join_room(room)
     
+    # 如果房間不存在，建立新房間
     if room not in games:
         games[room] = Game(room)
     
     game = games[room]
     
-    # --- [新增] 斷線重連檢查 ---
-    old_sid = None
-    for sid, p in game.players.items():
-        if p['name'] == username:
-            old_sid = sid
-            break
+    # --- 安全版邏輯 (先不檢查斷線重連，確保能進去) ---
     
-    if old_sid:
-        # A. 這是重連玩家 (名字已存在)
-        print(f"♻️ 玩家重連：{username} (舊ID: {old_sid} -> 新ID: {request.sid})")
-        
-        # 1. 繼承舊資料
-        player_data = game.players.pop(old_sid) # 移除舊的
-        game.players[request.sid] = player_data # 綁定新的
-        
-        # 2. 如果他是房主，更新房主 ID
-        if game.host_sid == old_sid:
-            game.host_sid = request.sid
-            
-        # 3. 嘗試修復投票紀錄 (如果他正在投票)
-        if old_sid in game.day_votes:
-            vote_target = game.day_votes.pop(old_sid)
-            game.day_votes[request.sid] = vote_target
-            
-        # 4. 告訴前端：你回來了
-        emit('join_success', {'room': room, 'is_host': (game.host_sid == request.sid)}, room=request.sid)
-        
-        # 5. [關鍵] 如果遊戲已經開始，要把角色和進度傳給他
-        if game.phase != 'setup':
-            # 回傳角色資訊
-            role = player_data['role']
-            emit('role_assign', {'role': role}, room=request.sid)
-            
-            # 回傳當前階段
-            emit('phase_change', {'phase': game.phase, 'dead': []}, room=request.sid)
-            
-            # 如果是狼人，要看得到隊友
-            if role in ['狼人', '狼王']:
-                wolves = [p['name'] for p in game.players.values() if p['role'] in ['狼人', '狼王']]
-                emit('wolf_teammates', {'wolves': wolves}, room=request.sid)
-            
-            # 如果已經死了，要變黑白
-            if not player_data['alive']:
-                 emit('kicked', {'msg': '你已經死亡，目前觀戰中...'}, room=request.sid) # 這裡借用 kicked 讓他知道狀態，或前端判斷 alive
-            
-            # 幫他恢復 Log (選擇性，目前先不回傳歷史 Log，只回傳當下狀態)
-            emit('action_result', {'msg': '⚡ 歡迎回來！已恢復遊戲進度。'}, room=request.sid)
+    # 檢查是否名字重複 (簡單擋一下)
+    for p in game.players.values():
+        if p['name'] == username:
+            # 如果名字重複，暫時允許加入 (避免卡死)，或者你可以 return
+            pass 
 
+    # 建立新玩家資料
+    game.players[request.sid] = {
+        'name': username,
+        'role': None,
+        'alive': True,
+        'number': 0,
+        'is_host': False
+    }
+    
+    # 房主判定
+    if len(game.players) == 1:
+        game.host_sid = request.sid
+        game.players[request.sid]['is_host'] = True
+        emit('join_success', {'room': room, 'is_host': True}, room=request.sid)
     else:
-        # B. 這是新玩家 (正常加入)
-        game.players[request.sid] = {
-            'name': username,
-            'role': None,
-            'alive': True,
-            'number': 0,
-            'is_host': False
-        }
-        
-        # 如果是房間第一個人，設為房主
-        if len(game.players) == 1:
+        # 檢查有沒有房主，沒有就補位
+        if game.host_sid is None:
             game.host_sid = request.sid
             game.players[request.sid]['is_host'] = True
             emit('join_success', {'room': room, 'is_host': True}, room=request.sid)
         else:
             emit('join_success', {'room': room, 'is_host': False}, room=request.sid)
 
-    # 最後廣播更新列表
+    # 廣播更新
     emit('update_players', {'players': game.get_player_list()}, room=room)
-
-@socketio.on('disconnect')
-def on_disconnect():
-    target_room = None
-    for room_id, game in games.items():
-        if request.sid in game.players:
-            target_room = room_id
-            del game.players[request.sid]
-            if game.host_sid == request.sid:
-                if game.players:
-                    new_host = next(iter(game.players))
-                    game.host_sid = new_host
-                else:
-                    game.host_sid = None
-            break
-    if target_room:
-        game = games[target_room]
-        emit('update_players', {'players': game.get_player_list()}, room=target_room)
-        for sid in game.players: emit('host_update', {'is_host': (sid == game.host_sid)}, room=sid)
 
 # [新增] 踢人功能
 @socketio.on('kick_player')
