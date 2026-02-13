@@ -4,7 +4,10 @@ import random
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'werewolf_secret_key'
-socketio = SocketIO(app, cors_allowed_origins="*")
+# [修改] 加入 ping_timeout 和 ping_interval
+# ping_timeout=60: 允許客戶端 60 秒不說話 (切窗緩衝時間)
+# ping_interval=25: 每 25 秒檢查一次心跳
+socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
 
 games = {}
 
@@ -252,18 +255,86 @@ def auto_ready_passives(room):
 def index():
     return render_template('index.html')
 
-@socketio.on('join_game')
+@socketio.on('join')
 def on_join(data):
+    username = data['username']
     room = data['room']
-    name = data['name']
+    
     join_room(room)
-    if room not in games: games[room] = Game(room)
+    
+    if room not in games:
+        games[room] = Game(room)
+    
     game = games[room]
-    if request.sid not in game.players:
-        game.players[request.sid] = {'name': name, 'role': None, 'alive': True, 'number': 0}
-    if game.host_sid is None: game.host_sid = request.sid
+    
+    # --- [新增] 斷線重連檢查 ---
+    old_sid = None
+    for sid, p in game.players.items():
+        if p['name'] == username:
+            old_sid = sid
+            break
+    
+    if old_sid:
+        # A. 這是重連玩家 (名字已存在)
+        print(f"♻️ 玩家重連：{username} (舊ID: {old_sid} -> 新ID: {request.sid})")
+        
+        # 1. 繼承舊資料
+        player_data = game.players.pop(old_sid) # 移除舊的
+        game.players[request.sid] = player_data # 綁定新的
+        
+        # 2. 如果他是房主，更新房主 ID
+        if game.host_sid == old_sid:
+            game.host_sid = request.sid
+            
+        # 3. 嘗試修復投票紀錄 (如果他正在投票)
+        if old_sid in game.day_votes:
+            vote_target = game.day_votes.pop(old_sid)
+            game.day_votes[request.sid] = vote_target
+            
+        # 4. 告訴前端：你回來了
+        emit('join_success', {'room': room, 'is_host': (game.host_sid == request.sid)}, room=request.sid)
+        
+        # 5. [關鍵] 如果遊戲已經開始，要把角色和進度傳給他
+        if game.phase != 'setup':
+            # 回傳角色資訊
+            role = player_data['role']
+            emit('role_assign', {'role': role}, room=request.sid)
+            
+            # 回傳當前階段
+            emit('phase_change', {'phase': game.phase, 'dead': []}, room=request.sid)
+            
+            # 如果是狼人，要看得到隊友
+            if role in ['狼人', '狼王']:
+                wolves = [p['name'] for p in game.players.values() if p['role'] in ['狼人', '狼王']]
+                emit('wolf_teammates', {'wolves': wolves}, room=request.sid)
+            
+            # 如果已經死了，要變黑白
+            if not player_data['alive']:
+                 emit('kicked', {'msg': '你已經死亡，目前觀戰中...'}, room=request.sid) # 這裡借用 kicked 讓他知道狀態，或前端判斷 alive
+            
+            # 幫他恢復 Log (選擇性，目前先不回傳歷史 Log，只回傳當下狀態)
+            emit('action_result', {'msg': '⚡ 歡迎回來！已恢復遊戲進度。'}, room=request.sid)
+
+    else:
+        # B. 這是新玩家 (正常加入)
+        game.players[request.sid] = {
+            'name': username,
+            'role': None,
+            'alive': True,
+            'number': 0,
+            'is_host': False
+        }
+        
+        # 如果是房間第一個人，設為房主
+        if len(game.players) == 1:
+            game.host_sid = request.sid
+            game.players[request.sid]['is_host'] = True
+            emit('join_success', {'room': room, 'is_host': True}, room=request.sid)
+        else:
+            emit('join_success', {'room': room, 'is_host': False}, room=request.sid)
+
+    # 最後廣播更新列表
     emit('update_players', {'players': game.get_player_list()}, room=room)
-    for sid in game.players: emit('host_update', {'is_host': (sid == game.host_sid)}, room=sid)
 
 @socketio.on('disconnect')
 def on_disconnect():

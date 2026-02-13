@@ -7,12 +7,21 @@ let currentPhase = "setup";
 
 // ... (joinGame, startGame, confirmTurn, startVoting, goToNight, usePotion 維持不變) ...
 function joinGame() {
-    myName = document.getElementById('username').value;
-    myRoom = document.getElementById('room').value;
-    if (!myName || !myRoom) return alert("請輸入資訊");
-    socket.emit('join_game', {name: myName, room: myRoom});
-    document.getElementById('login-view').classList.add('hidden');
-    document.getElementById('lobby-view').classList.remove('hidden');
+    const username = document.getElementById('username').value;
+    const room = document.getElementById('room').value;
+
+    if (username && room) {
+        myName = username;
+        myRoom = room;
+        
+        // [新增] 把名字和房號存在瀏覽器裡
+        localStorage.setItem('ww_username', username);
+        localStorage.setItem('ww_room', room);
+
+        socket.emit('join', {username: username, room: room});
+    } else {
+        alert("請輸入暱稱和房號！");
+    }
 }
 
 function startGame() {
@@ -103,15 +112,17 @@ socket.on('game_reset', (data) => {
 });
 
 socket.on('update_players', (data) => {
-    // 判斷自己是不是房主
+    // 找出我是誰，更新存活狀態
     const me = data.players.find(p => p.name === myName);
-    const amIHost = me && me.is_host;
-
     if (me) {
-        isAlive = me.alive;
+        isAlive = me.alive; // [重要] 同步伺服器的存活狀態
+        
+        // 如果重連回來發現自己死了，更新介面
         if (!isAlive) {
             document.getElementById('my-role-info').innerText += " (已死亡)";
             document.getElementById('my-role-info').style.color = "gray";
+            // 鎖定按鈕
+            document.querySelectorAll('.player-btn').forEach(b => b.disabled = true);
         }
     }
 
@@ -435,43 +446,87 @@ socket.on('force_confirm', (data) => {
 socket.on('seer_result', (data) => { alert(`查驗結果: ${data.target} 是 ${data.identity}`); });
 socket.on('action_result', (data) => { addLog(`[系統] ${data.msg}`); });
 
-function handlePlayerClick(target) {
-    if (!isAlive && currentPhase !== 'shoot') return alert("你已經死了");
-    
+// 處理玩家點擊頭像 (核心邏輯)
+function handlePlayerClick(targetName) {
+    console.log(`點擊: ${targetName}, 階段: ${currentPhase}, 存活: ${isAlive}`);
+
+    // 1. 死人檢查：如果你死了，點什麼都沒用
+    if (!isAlive) {
+        alert("👻 你已經死亡，無法進行任何操作！");
+        return;
+    }
+
+    // 2. 投票階段 (Day Vote) - 最優先處理
     if (currentPhase === 'day_vote') {
-        if (confirm(`確定要投給 ${targetName} 嗎？(投出後無法更改)`)) {
+        if (confirm(`🗳️ 確定要投給 【${targetName}】 嗎？\n(投出後無法更改)`)) {
             socket.emit('day_vote', {room: myRoom, target: targetName});
             
-            // [新增] 鎖票特效：立刻鎖定所有按鈕
+            // 視覺鎖定：讓按鈕變灰，防止連點
             document.querySelectorAll('.player-btn').forEach(btn => {
                 btn.disabled = true;
-                btn.style.opacity = "0.5"; // 讓按鈕變灰，視覺上知道不能按了
+                btn.style.opacity = "0.6";
+                btn.style.cursor = "not-allowed";
             });
             
-            addLog(`[系統] 你已投票給 ${targetName}。等待其他人投票...`);
+            addLog(`[系統] 你已投票給 ${targetName}。`);
         }
-    } else if (currentPhase === 'day_speak') {
-        // ... (發言階段不能按，這段維持原樣)
-        alert("現在是發言階段，請專心討論！");
-    } else if (currentPhase === 'shoot') {
-        if (confirm(`確定要帶走 ${target} 嗎？`)) {
-            socket.emit('shoot_action', {room: myRoom, target: target});
-            document.querySelectorAll('.player-btn').forEach(b => b.disabled = true);
+        return; // 結束函式，不繼續往下跑
+    }
+
+    // 3. 開槍階段 (Shoot)
+    if (currentPhase === 'shoot') {
+        if (confirm(`🔫 確定要開槍帶走 【${targetName}】 嗎？`)) {
+            socket.emit('shoot_action', {room: myRoom, target: targetName});
+        }
+        return; // 結束函式
+    }
+
+    // 4. 發言階段 (Day Speak) - 禁止操作
+    if (currentPhase === 'day_speak') {
+        alert("🗣️ 現在是發言討論時間，請等待投票開始！");
+        return; // 結束函式
+    }
+
+    // 5. 夜間技能階段 (Night)
+    if (currentPhase === 'night') {
+        // 檢查有沒有選中技能 (例如女巫選藥水)
+        if (selectedAction) {
+            // 女巫邏輯
+            if (selectedAction === 'heal') {
+                if (confirm(`🧪 確定要對 ${targetName} 使用解藥嗎？`)) {
+                    socket.emit('witch_action', {room: myRoom, type: 'save', target: targetName});
+                    selectedAction = null;
+                    resetActionButtons();
+                }
+            } else if (selectedAction === 'poison') {
+                if (confirm(`☠️ 確定要毒死 ${targetName} 嗎？`)) {
+                    socket.emit('witch_action', {room: myRoom, type: 'poison', target: targetName});
+                    selectedAction = null;
+                    resetActionButtons();
+                }
+            }
+        } 
+        // 預言家邏輯 (直接點頭像)
+        else if (myRole === '預言家') {
+            socket.emit('seer_check', {room: myRoom, target: targetName});
+        }
+        // 狼人邏輯 (直接點頭像)
+        else if (myRole === '狼人' || myRole === '狼王') {
+            socket.emit('wolf_vote', {room: myRoom, target: targetName});
+        }
+        // 守衛邏輯 (直接點頭像)
+        else if (myRole === '守衛') {
+            socket.emit('guard_action', {room: myRoom, target: targetName});
+        }
+        else {
+            // 如果是平民或獵人晚上亂點
+            addLog("[系統] 天黑請閉眼，現在不是你的行動時間。");
         }
         return;
     }
 
-    if (currentPhase === 'night') {
-        let type = '';
-        if (myRole.includes('狼')) type = 'wolf_vote';
-        else if (myRole === '預言家') type = 'seer_check';
-        else if (myRole === '守衛') type = 'guard_protect';
-        else if (myRole === '女巫') {
-            if (confirm(`對 ${target} 用毒?`)) type = 'witch_poison';
-            else return;
-        }
-        if (type) socket.emit('night_action', {room: myRoom, type: type, target: target});
-    }
+    // 6. 其他情況 (Setup 等)
+    console.log("未定義的點擊行為");
 }
 
 function addLog(msg, className='') { 
@@ -479,3 +534,31 @@ function addLog(msg, className='') {
     log.innerHTML += `<div class="${className}">${msg}</div>`; 
     log.scrollTop = log.scrollHeight; 
 }
+
+// [新增] 斷線自動重連機制
+socket.on('disconnect', () => {
+    console.log("斷線了...");
+    addLog("[系統] 連線不穩，正在嘗試重連...");
+    // 讓按鈕變灰，避免誤觸
+    document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+});
+
+socket.on('connect', () => {
+    console.log("連線成功！");
+    addLog("[系統] 連線已恢復！");
+    // 如果是斷線後重連，可能需要重新發送加入房間的請求
+    if (myName && myRoom) {
+        socket.emit('join', {username: myName, room: myRoom});
+    }
+});
+
+// [新增] 監聽視窗切換 (當玩家切回來時)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        // 如果切回來時發現斷線了，嘗試重連
+        if (!socket.connected) {
+            console.log("切回視窗，嘗試重連...");
+            socket.connect();
+        }
+    }
+});
