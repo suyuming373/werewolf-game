@@ -575,6 +575,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // 網頁載入時自動重連
+// 網頁載入時
 window.onload = function() {
     const savedName = localStorage.getItem('ww_username');
     const savedRoom = localStorage.getItem('ww_room');
@@ -583,5 +584,9 @@ window.onload = function() {
         console.log("偵測到舊紀錄，自動填入...");
         document.getElementById('username').value = savedName;
         document.getElementById('room').value = savedRoom;
+        
+        // [新增] 只有在「非手動登出」的情況下才自動加入
+        // 這裡直接執行 joinGame() 就可以實現「F5 自動回房」
+        joinGame(); 
     }
 };
