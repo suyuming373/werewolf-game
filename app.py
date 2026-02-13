@@ -267,65 +267,40 @@ def on_join(data):
     
     game = games[room]
     
-    # --- 1. 防分身檢查 (找舊帳號) ---
+    # --- [關鍵修改] 搜尋房間裡有沒有「同名」的舊玩家 ---
     target_old_sid = None
     for sid, p in game.players.items():
         if p['name'] == username:
             target_old_sid = sid
             break
-            
-    # --- 2. 處理玩家資料 ---
+    
+    # 判斷是「新加入」還是「重連」
     if target_old_sid:
-        # A. 這是舊玩家 (斷線重連)
-        print(f"♻️ 玩家回歸: {username}")
+        # A. 發現重複名字 -> 視為「斷線重連」或「分頁重整」
+        print(f"♻️ {username} 重連/分頁切換 (繼承資料)")
         
-        # 繼承舊資料
-        player_data = game.players.pop(target_old_sid) # 移除舊的
-        game.players[request.sid] = player_data        # 綁定新的
+        # 1. 把舊資料搬過來
+        old_data = game.players.pop(target_old_sid) # 刪除舊的分身
+        game.players[request.sid] = old_data        # 綁定到現在這個新分頁
         
-        # 如果舊 ID 是房主，轉移權限
+        # 2. [最重要] 如果舊 ID 是房主，把皇冠傳給新的 ID
         if game.host_sid == target_old_sid:
             game.host_sid = request.sid
+            game.players[request.sid]['is_host'] = True
             
-        # 如果舊 ID 有投票紀錄，轉移投票
+        # 3. 如果舊 ID 有投票紀錄，也要繼承
         if target_old_sid in game.day_votes:
             vote = game.day_votes.pop(target_old_sid)
             game.day_votes[request.sid] = vote
 
-        # 回傳加入成功 (讓前端切換到大廳)
-        emit('join_success', {'room': room, 'is_host': (game.host_sid == request.sid)}, room=request.sid)
-
-        # ---------------------------------------------------------
-        # [新增] 這裡就是你缺少的「回到遊戲」邏輯！
-        # 如果遊戲已經開始 (不是 setup)，要強迫前端切換畫面
-        # ---------------------------------------------------------
-        if game.phase != 'setup':
-            # 1. 把身分證還給他 (這會觸發前端切換到遊戲介面)
-            emit('game_info', {
-                'role': player_data['role'], 
-                'number': player_data['number']
-            }, room=request.sid)
-            
-            # 2. 告訴他現在是什麼階段 (白天/晚上)
-            emit('phase_change', {
-                'phase': game.phase, 
-                'dead': [], # 剛連回來先不顯示昨晚死訊，避免混亂
-                'potions': game.witch_potions # 如果是晚上，要把藥水狀態給女巫
-            }, room=request.sid)
-            
-            # 3. 如果是狼人，要把隊友名單還給他
-            if player_data['role'] in ['狼人', '狼王']:
-                teammates = []
-                for s, p in game.players.items():
-                    if p['role'] in ['狼人', '狼王'] and s != request.sid:
-                        teammates.append({'name': p['name'], 'role': p['role']})
-                emit('wolf_teammates', {'teammates': teammates}, room=request.sid)
-                
-            # 4. 補一句歡迎回來
-            emit('action_result', {'msg': '⚡ 連線已恢復，回到遊戲中！'}, room=request.sid)
+        # 4. 回傳成功 (並且告訴前端：你是房主嗎？)
+        emit('join_success', {
+            'room': room, 
+            'is_host': (game.host_sid == request.sid)
+        }, room=request.sid)
 
     else:
-        # B. 這是新玩家
+        # B. 沒發現重複 -> 真正的「新玩家」
         game.players[request.sid] = {
             'name': username,
             'role': None,
@@ -334,7 +309,8 @@ def on_join(data):
             'is_host': False
         }
         
-        # 房主判定
+        # 檢查房間有沒有房主 (如果沒有，這個人就是房主)
+        # 注意：這裡多加一個檢查，防止房主斷線後房間沒大人的情況
         if game.host_sid is None or game.host_sid not in game.players:
             game.host_sid = request.sid
             game.players[request.sid]['is_host'] = True
@@ -344,10 +320,9 @@ def on_join(data):
             'is_host': (game.host_sid == request.sid)
         }, room=request.sid)
 
-    # 最後廣播更新列表
+    # 最後：廣播更新列表
     emit('update_players', {'players': game.get_player_list()}, room=room)
 
-# [新增] 踢人功能
 # [新增] 踢人功能
 @socketio.on('kick_player')
 def on_kick(data):
