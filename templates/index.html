@@ -61,10 +61,29 @@
         <h2 id="phase-title" style="color: #ff9800;">載入中...</h2>
         <div id="my-role-info" style="font-size: 1.2em; font-weight: bold; margin-bottom: 10px; color: cyan;"></div>
         
-        <div id="witch-area" class="card hidden" style="border: 1px solid #e040fb;">
-            <h4 style="color: #e040fb; margin:0 0 10px 0;">🔮 女巫視角</h4>
-            <p>狼人集火：<span id="victim-name" style="color: red;">未知</span></p>
-            <button id="btn-save" onclick="usePotion('save')" style="background: #e040fb;" disabled>使用解藥</button>
+        <div id="witch-area" class="card hidden" style="border: 2px solid #e040fb; background: #2a0a2e;">
+            <h3 style="color: #e040fb; margin-top: 0;">🔮 女巫視角</h3>
+            
+            <div style="margin-bottom: 15px; font-size: 1.1em;">
+                昨晚狼人襲擊了：
+                <span id="victim-name" style="color: red; font-weight: bold; font-size: 1.3em;">(等待狼人行動...)</span>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button id="btn-save" onclick="usePotion('save')" 
+                        style="background: #e040fb; color: white; flex: 1;">
+                    💉 使用解藥
+                </button>
+
+                <button id="btn-poison" onclick="usePotion('poison')" 
+                        style="background: #9c27b0; color: white; flex: 1;">
+                    ☠️ 使用毒藥
+                </button>
+            </div>
+            
+            <p style="color: #ccc; font-size: 0.9em; margin-top: 10px;">
+                * 毒藥請點擊按鈕後，再點擊下方的玩家頭像。
+            </p>
         </div>
 
         <div id="guard-area" class="card hidden" style="border: 1px solid #4caf50;">

@@ -96,24 +96,51 @@ function confirmTurn() {
 function startVoting() { socket.emit('start_voting', {room: myRoom}); }
 function goToNight() { socket.emit('go_to_night', {room: myRoom}); }
 
-let selectedAction = null; // 記錄當前選中的技能 (女巫用)
+// ---------------- 女巫藥水邏輯 ----------------
 
-function usePotion(type) { 
+let selectedAction = null; // 記錄目前選了什麼藥水
+
+function usePotion(type) {
     if (!isAlive) return;
-    selectedAction = type; // 標記為正在使用藥水
-    
-    // 視覺回饋
+
     if (type === 'save') {
-         document.getElementById('btn-save').innerText = "請點擊頭像使用解藥...";
-         document.getElementById('btn-save').disabled = true;
+        // --- 解藥邏輯 ---
+        const victim = document.getElementById('victim-name').innerText;
+        
+        // 防呆：如果還不知道死者，不能亂按
+        if (victim === "(等待狼人行動...)" || victim === "未知") {
+            showToast("⚠️ 還不知道狼人殺了誰，無法使用解藥！");
+            return;
+        }
+
+        // 確認使用
+        showConfirm(`🧪 確定要對 ${victim} 使用解藥嗎？`, () => {
+            socket.emit('night_action', {room: myRoom, type: 'witch_save', target: victim});
+            
+            // 鎖定按鈕
+            document.getElementById('btn-save').disabled = true;
+            document.getElementById('btn-save').innerText = "已使用解藥";
+            showToast("已送出解藥指令");
+        });
+
+    } else if (type === 'poison') {
+        // --- 毒藥邏輯 ---
+        selectedAction = 'poison'; // 標記：現在點頭像 = 下毒
+        
+        showToast("☠️ 請點擊下方一名「玩家頭像」進行下毒！");
+        
+        // 視覺回饋：讓毒藥按鈕變色，提示正在使用中
+        const pBtn = document.getElementById('btn-poison');
+        pBtn.innerText = "請選擇目標...";
+        pBtn.style.border = "2px solid white";
+        
+        // 解鎖所有頭像 (讓女巫可以選人)
+        document.querySelectorAll('.player-btn').forEach(btn => {
+            btn.disabled = false;
+            btn.style.cursor = "pointer";
+            btn.style.opacity = "1";
+        });
     }
-    addLog("[系統] 請點擊一名玩家頭像來發動技能");
-    
-    // 暫時解鎖所有玩家按鈕讓女巫點選
-    document.querySelectorAll('.player-btn').forEach(btn => {
-        btn.disabled = false;
-        btn.style.cursor = "pointer";
-    });
 }
 
 function resetActionButtons() {
@@ -512,21 +539,23 @@ function handlePlayerClick(targetName) {
 
     // 5. 夜間技能階段
     if (currentPhase === 'night') {
-        if (selectedAction) {
-            if (selectedAction === 'save') {
-                showConfirm(`🧪 確定對 ${targetName} 使用解藥嗎？`, () => {
-                    socket.emit('night_action', {room: myRoom, type: 'witch_save', target: targetName});
-                    selectedAction = null;
-                    resetActionButtons();
-                });
-            } else if (selectedAction === 'poison') {
-                showConfirm(`☠️ 確定要毒死 ${targetName} 嗎？`, () => {
-                    socket.emit('night_action', {room: myRoom, type: 'witch_poison', target: targetName});
-                    selectedAction = null;
-                    resetActionButtons();
-                });
-            }
-        } 
+        
+        // 如果按了「毒藥」按鈕
+        if (selectedAction === 'poison') {
+            showConfirm(`☠️ 確定要毒死 【${targetName}】 嗎？`, () => {
+                socket.emit('night_action', {room: myRoom, type: 'witch_poison', target: targetName});
+                
+                // 重置狀態
+                selectedAction = null;
+                document.getElementById('btn-poison').disabled = true;
+                document.getElementById('btn-poison').innerText = "已使用毒藥";
+                document.getElementById('btn-poison').style.border = "none";
+                
+                // 鎖定頭像
+                lockWitchUI(); 
+            });
+            return;
+        }
         else if (myRole === '預言家') {
             socket.emit('night_action', {room: myRoom, type: 'seer_check', target: targetName});
         }
