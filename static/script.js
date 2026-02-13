@@ -400,13 +400,20 @@ socket.on('vote_result', (data) => {
 
 socket.on('wolf_notification', (data) => { if(myRole.includes('狼') && isAlive) addLog(`[狼隊] ${data.msg}`); });
 socket.on('witch_vision', (data) => {
-    if (!isAlive) return;
+    if (!isAlive) return; // 死人看不到
+    
+    console.log("女巫感應收到:", data);
     document.getElementById('victim-name').innerText = data.victim;
+    
     const btn = document.getElementById('btn-save');
+    // [重點] 只有當解藥沒用過時，才解鎖按鈕
     if (btn.innerText !== "解藥已用完") {
         btn.disabled = false;
+        btn.innerText = "使用解藥"; // 重置文字
+        btn.style.background = "#e040fb"; // 恢復顏色
     }
-    addLog(`[感應] 狼人結束行動，目標是 ${data.victim}。請決定是否使用解藥，然後按結束回合。`, "witch-vision");
+    
+    addLog(`[感應] 狼人目標是 ${data.victim}。`, "witch-vision");
 });
 
 socket.on('force_confirm', (data) => {

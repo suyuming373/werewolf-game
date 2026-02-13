@@ -456,58 +456,84 @@ def on_action(data):
     player = game.players.get(request.sid)
     if not player or not player['role'] or not player['alive']: return 
 
+    print(f"[{room}] 收到行動: {player['role']} {player['name']} -> {action_type} 目標: {target}")
+
+    # --- 🐺 狼人行動 ---
     if action_type == 'wolf_vote' and player['role'] in ['狼人', '狼王']:
         game.night_actions['wolf_votes'][request.sid] = target
-        wolf_sids = [s for s, p in game.players.items() if p['role'] in ['狼人', '狼王']]
         
-        # [修改] 通知訊息加入身分標記
+        # 通知其他狼隊友
+        wolf_sids = [s for s, p in game.players.items() if p['role'] in ['狼人', '狼王']]
         for ws in wolf_sids:
             emit('wolf_notification', {'msg': f'{player["name"]} ({player["role"]}) 改投給了 {target}'}, room=ws)
         
+        # 檢查是否達成共識
         alive_wolf_sids = [s for s, p in game.players.items() if p['role'] in ['狼人', '狼王'] and p['alive']]
         current_votes = game.night_actions['wolf_votes']
+        
+        # 如果所有活著的狼人都投了，且目標一致
         if all(sid in current_votes for sid in alive_wolf_sids):
             targets = [current_votes[sid] for sid in alive_wolf_sids]
             if len(set(targets)) == 1:
                 consensus_target = targets[0]
+                
+                # 1. 鎖定狼人操作
                 for sid in alive_wolf_sids:
                     game.ready_players.add(sid)
                     emit('force_confirm', {'msg': f'狼隊共識達成：鎖定 {consensus_target}！'}, room=sid)
-                if not game.night_actions['witch_notified']:
-                    witch_sid = next((s for s, p in game.players.items() if p['role'] == '女巫'), None)
-                    if witch_sid: emit('witch_vision', {'victim': consensus_target}, room=witch_sid)
-                    game.night_actions['witch_notified'] = True
+                
+                # 2. [關鍵] 通知女巫 (不管之前有沒有通知過，只要共識改變就通知)
+                witch_sid = next((s for s, p in game.players.items() if p['role'] == '女巫'), None)
+                if witch_sid: 
+                    emit('witch_vision', {'victim': consensus_target}, room=witch_sid)
+                    print(f"-> 通知女巫: {consensus_target} 被殺了")
+                
+                game.night_actions['witch_notified'] = True
+                
+                # 3. 嘗試結算夜晚
                 check_and_process_night_end(room)
 
+    # --- 🔮 預言家行動 ---
     elif action_type == 'seer_check' and player['role'] == '預言家':
         if game.night_actions['seer_has_checked']:
-            emit('action_result', {'msg': '已查驗過'}, room=request.sid)
+            emit('action_result', {'msg': '❌ 今晚已經查驗過了'}, room=request.sid)
             return
+            
         target_role = next((p['role'] for s, p in game.players.items() if p['name'] == target), '未知')
-        result = '狼人(壞人)' if target_role in ['狼人', '狼王'] else '好人'
+        result = '狼人 (壞人)' if target_role in ['狼人', '狼王'] else '好人'
+        
         game.night_actions['seer_has_checked'] = True
         emit('seer_result', {'target': target, 'identity': result}, room=request.sid)
-        game.ready_players.add(request.sid)
+        
+        game.ready_players.add(request.sid) # 預言家行動完自動準備
         check_and_process_night_end(room)
 
+    # --- 🧪 女巫毒藥 ---
     elif action_type == 'witch_poison' and player['role'] == '女巫':
         if game.witch_potions['poison']:
             game.night_actions['witch_action']['poison'] = target
             game.witch_potions['poison'] = False
-            emit('action_result', {'msg': f'已對 {target} 下毒'}, room=request.sid)
+            emit('action_result', {'msg': f'☠️ 已對 {target} 使用毒藥'}, room=request.sid)
+        else:
+            emit('action_result', {'msg': '❌ 毒藥已經用完了'}, room=request.sid)
+
+    # --- 🧪 女巫解藥 (本次修正重點) ---
     elif action_type == 'witch_save' and player['role'] == '女巫':
-        if game.night_actions['witch_notified'] and game.witch_potions['heal']:
+        # [修改] 移除 witch_notified 的嚴格檢查，只要還有藥水就能用
+        # 這樣就算狼人還沒殺人，女巫也能先按 (雖然沒意義，但不會報錯卡死)
+        if game.witch_potions['heal']:
             game.night_actions['witch_action']['save'] = True
             game.witch_potions['heal'] = False
-            emit('action_result', {'msg': '已使用解藥'}, room=request.sid)
+            print(f"-> 女巫使用了解藥 (救 {target})")
+            emit('action_result', {'msg': '🧪 已使用解藥 (今晚將是平安夜)'}, room=request.sid)
+        else:
+            emit('action_result', {'msg': '❌ 解藥已經用完了'}, room=request.sid)
 
-    # [修改] 守衛邏輯
+    # --- 🛡️ 守衛行動 ---
     elif action_type == 'guard_protect' and player['role'] == '守衛':
         game.night_actions['guard_protect'] = target
-        
-        # 1. 回傳確認訊息給守衛
         emit('guard_selection', {'target': target}, room=request.sid)
-        emit('action_result', {'msg': f'已選擇守護 {target} (請按結束回合確認)'}, room=request.sid)
+        emit('action_result', {'msg': f'🛡️ 已選擇守護 {target}'}, room=request.sid)
 
 @socketio.on('shoot_action')
 def on_shoot(data):
