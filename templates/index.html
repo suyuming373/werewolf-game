@@ -88,6 +88,18 @@
     </div>
 </div>
 
+<div id="custom-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <h3 id="modal-title" style="color: #ff9800; margin-top: 0;">提示</h3>
+        <p id="modal-message" style="font-size: 1.1em; margin: 20px 0;">訊息內容</p>
+        <div class="modal-buttons">
+            <button id="btn-modal-cancel" onclick="closeModal()" style="background: #666;">取消</button>
+            <button id="btn-modal-confirm" style="background: #2196f3;">確定</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-message" class="toast hidden"></div>
 <script src="/static/script.js"></script>
 </body>
 </html>

@@ -6,6 +6,53 @@ let isAlive = true;
 let currentPhase = "setup"; 
 let amIHost = false; // [修復] 這裡補上了房主變數宣告！
 
+// [新增] 自製彈窗函式
+function showConfirm(msg, callback) {
+    const modal = document.getElementById('custom-modal');
+    document.getElementById('modal-message').innerText = msg;
+    modal.classList.remove('hidden');
+
+    const confirmBtn = document.getElementById('btn-modal-confirm');
+    const cancelBtn = document.getElementById('btn-modal-cancel');
+
+    // 清除舊的監聽器 (避免重複綁定)
+    let newConfirm = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+    
+    // 綁定新的點擊事件
+    newConfirm.onclick = () => {
+        closeModal();
+        callback(); // 執行傳進來的動作
+    };
+    
+    // 如果只需要顯示訊息 (沒有 callback)，就隱藏取消按鈕
+    if (!callback) {
+        cancelBtn.classList.add('hidden');
+        newConfirm.innerText = "知道了";
+    } else {
+        cancelBtn.classList.remove('hidden');
+        newConfirm.innerText = "確定";
+    }
+}
+
+function closeModal() {
+    document.getElementById('custom-modal').classList.add('hidden');
+}
+
+// [新增] 自製 Toast 函式 (取代 alert)
+function showToast(msg) {
+    const toast = document.getElementById('toast-message');
+    toast.innerText = msg;
+    toast.classList.remove('hidden');
+    toast.style.opacity = 1;
+    
+    // 3秒後自動消失
+    setTimeout(() => {
+        toast.style.opacity = 0;
+        setTimeout(() => { toast.classList.add('hidden'); }, 300);
+    }, 3000);
+}
+
 // ---------------- 按鈕功能區 ----------------
 
 function joinGame() {
@@ -89,9 +136,9 @@ function voteAbstain() {
 
 // 踢人函式
 function kickPlayer(targetName) {
-    if (confirm(`確定要踢出 ${targetName} 嗎？`)) {
+    showConfirm(`確定要踢出 ${targetName} 嗎？`, () => {
         socket.emit('kick_player', {room: myRoom, target_name: targetName});
-    }
+    });
 }
 
 // 重置房間
@@ -427,59 +474,57 @@ socket.on('seer_result', (data) => { alert(`查驗結果: ${data.target} 是 ${d
 socket.on('action_result', (data) => { addLog(`[系統] ${data.msg}`); });
 
 // 處理玩家點擊頭像 (核心邏輯)
+// 處理玩家點擊頭像 (改用自製彈窗版)
 function handlePlayerClick(targetName) {
     console.log(`點擊: ${targetName}, 階段: ${currentPhase}, 存活: ${isAlive}`);
 
-    // 1. 死人檢查
     if (!isAlive) {
-        alert("👻 你已經死亡，無法進行任何操作！");
+        showToast("👻 你已經死亡，無法操作！");
         return;
     }
 
-    // 2. 投票階段 (Day Vote)
+    // 2. 投票階段
     if (currentPhase === 'day_vote') {
-        if (confirm(`🗳️ 確定要投給 【${targetName}】 嗎？\n(投出後無法更改)`)) {
+        showConfirm(`🗳️ 確定要投給 【${targetName}】 嗎？\n(投出後無法更改)`, () => {
             socket.emit('day_vote', {room: myRoom, target: targetName});
             document.querySelectorAll('.player-btn').forEach(btn => {
                 btn.disabled = true;
                 btn.style.opacity = "0.6";
-                btn.style.cursor = "not-allowed";
             });
-            addLog(`[系統] 你已投票給 ${targetName}。`);
-        }
+            showToast(`已投票給 ${targetName}`);
+        });
         return;
     }
 
-    // 3. 開槍階段 (Shoot)
+    // 3. 開槍階段
     if (currentPhase === 'shoot') {
-        if (confirm(`🔫 確定要開槍帶走 【${targetName}】 嗎？`)) {
+        showConfirm(`🔫 確定要開槍帶走 【${targetName}】 嗎？`, () => {
             socket.emit('shoot_action', {room: myRoom, target: targetName});
-        }
+        });
         return;
     }
 
-    // 4. 發言階段 (Day Speak)
+    // 4. 發言階段
     if (currentPhase === 'day_speak') {
-        alert("🗣️ 現在是發言討論時間，請等待投票開始！");
+        showToast("🗣️ 現在是發言討論時間，請等待投票開始！");
         return;
     }
 
-    // 5. 夜間技能階段 (Night)
+    // 5. 夜間技能階段
     if (currentPhase === 'night') {
         if (selectedAction) {
-            // 女巫邏輯
             if (selectedAction === 'save') {
-                if (confirm(`🧪 確定要對 ${targetName} 使用解藥嗎？`)) {
+                showConfirm(`🧪 確定對 ${targetName} 使用解藥嗎？`, () => {
                     socket.emit('night_action', {room: myRoom, type: 'witch_save', target: targetName});
                     selectedAction = null;
                     resetActionButtons();
-                }
+                });
             } else if (selectedAction === 'poison') {
-                if (confirm(`☠️ 確定要毒死 ${targetName} 嗎？`)) {
+                showConfirm(`☠️ 確定要毒死 ${targetName} 嗎？`, () => {
                     socket.emit('night_action', {room: myRoom, type: 'witch_poison', target: targetName});
                     selectedAction = null;
                     resetActionButtons();
-                }
+                });
             }
         } 
         else if (myRole === '預言家') {
@@ -492,12 +537,10 @@ function handlePlayerClick(targetName) {
             socket.emit('night_action', {room: myRoom, type: 'guard_protect', target: targetName});
         }
         else {
-            addLog("[系統] 天黑請閉眼，現在不是你的行動時間。");
+            showToast("天黑請閉眼，現在不是你的行動時間。");
         }
         return;
     }
-
-    console.log("未定義的點擊行為");
 }
 
 function addLog(msg, className='') { 
