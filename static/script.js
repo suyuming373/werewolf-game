@@ -600,14 +600,26 @@ function handlePlayerClick(targetName) {
     }
 
     // 2. 投票階段
+    // 在 handlePlayerClick 的 day_vote 區塊
     if (currentPhase === 'day_vote') {
         showConfirm(`🗳️ 確定要投給 【${targetName}】 嗎？\n(投出後無法更改)`, () => {
             socket.emit('day_vote', {room: myRoom, target: targetName});
+            
+            // 鎖定按鈕們...
             document.querySelectorAll('.player-btn').forEach(btn => {
                 btn.disabled = true;
                 btn.style.opacity = "0.6";
             });
+            const abstainBtn = document.getElementById('btn-abstain');
+            if (abstainBtn) {
+                abstainBtn.disabled = true;
+                abstainBtn.style.opacity = "0.6";
+            }
+
             showToast(`已投票給 ${targetName}`);
+            
+            // [新增] 自己先顯示這行
+            addLog(`[系統] 你投給了 ${targetName}`); 
         });
         return;
     }
@@ -690,6 +702,18 @@ socket.on('connect', () => {
         socket.emit('join', {username: myName, room: myRoom});
     }
 });
+
+// [新增] 接收票型揭曉 (取代原本的即時廣播)
+socket.on('vote_reveal', (data) => {
+    addLog("=== 🗳️ 票型揭曉 ===");
+    data.votes.forEach(v => {
+        // 格式：小明 投給了 小華
+        addLog(`${v.voter} 投給了 ${v.target}`);
+    });
+    addLog("==================");
+});
+
+// 原本的 public_vote_log 如果還在，可以刪掉，或者留著也沒關係(後端不會送了)
 
 // 監聽視窗切換
 document.addEventListener('visibilitychange', () => {

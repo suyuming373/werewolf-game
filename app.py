@@ -576,82 +576,76 @@ def on_day_vote(data):
 
     if not player or not player['alive']: return
     
-    # [新增] 嚴格檢查 1：階段必須正確
-    if game.phase != 'day_vote':
-        return
-
-    # [新增] 嚴格檢查 2：鎖票 (禁止改票)
-    # 如果這個人已經在投票名單裡，直接無視他的第二次請求
+    # 嚴格檢查
+    if game.phase != 'day_vote': return
     if request.sid in game.day_votes:
         emit('action_result', {'msg': '❌ 你已經投過票了！無法更改。'}, room=request.sid)
         return
-
-    # [新增] 嚴格檢查 3：PK 局當事人不能投 (這原本就有，保留著)
     if game.is_pk_round and player['name'] in game.pk_targets:
         emit('action_result', {'msg': '❌ 你是 PK 對象，不能投票！'}, room=request.sid)
         return
 
+    # 記錄投票
     game.day_votes[request.sid] = data['target']
-    emit('public_vote_log', {'voter': player['name'], 'target': data['target']}, room=room)
     
-    # --- [關鍵修正 1] 計算「需要多少票」才能結算 ---
-    # 先算出活著的人
+    # [修改] 這裡刪除了 'public_vote_log'，改成什麼都不廣播
+    # 只會在最後所有人投完時才揭曉
+
+    # 計算需要票數
     alive_players = [p for p in game.players.values() if p['alive']]
     alive_count = len(alive_players)
-    
-    # 計算應投票人數 (Threshold)
     votes_needed = alive_count
     if game.is_pk_round:
-        # 如果是 PK 局，台上的活人不能投票，所以門檻要降低
         pk_alive_count = sum(1 for p in alive_players if p['name'] in game.pk_targets)
         votes_needed = alive_count - pk_alive_count
 
-    # 檢查票數是否足夠
+    # 檢查是否所有人投完
     if len(game.day_votes) >= votes_needed:
+        
+        # --- [新增] 票型揭曉 (Vote Reveal) ---
+        reveal_list = []
+        for vid, vtarget in game.day_votes.items():
+            vname = game.players[vid]['name']
+            reveal_list.append({'voter': vname, 'target': vtarget})
+        
+        # 廣播這張清單給所有人
+        emit('vote_reveal', {'votes': reveal_list}, room=room)
+        # -------------------------------------
+
+        # (以下維持原本的計票邏輯)
         counts = {}
         for t in game.day_votes.values(): counts[t] = counts.get(t, 0) + 1
         
         valid_counts = {t: c for t, c in counts.items() if t != '棄票'}
         
-        # --- [關鍵修正 2] 防止 max() 對空字典報錯 ---
-        # 狀況 A: 全員棄票 (或 PK 局沒人投有效票) -> 平安日
         if not valid_counts:
             emit('vote_result', {'victim': "全員棄票，無人出局！(平安日)"}, room=room)
             emit('update_players', {'players': game.get_player_list()}, room=room)
             emit('vote_result_final', {}, room=room)
-            # 重置狀態
             game.is_pk_round = False
             game.pk_targets = []
             return
 
-        # 找出最高票數
         max_vote_num = max(valid_counts.values())
         top_targets = [t for t, c in valid_counts.items() if c == max_vote_num]
         
-        # 狀況 B: 平票處理
         if len(top_targets) > 1:
             if game.is_pk_round:
-                # 已經是 PK 局還平票 -> 平安日
                 msg = f"PK 局再次平票 ({', '.join(top_targets)})，無人出局！"
                 emit('vote_result', {'victim': msg}, room=room)
                 emit('update_players', {'players': game.get_player_list()}, room=room)
                 emit('vote_result_final', {}, room=room)
-                
-                # 結束，重置狀態
                 game.is_pk_round = False
                 game.pk_targets = []
                 return
             else:
-                # 第一次平票 -> 進入 PK
-                game.day_votes = {} # 清空票箱
+                game.day_votes = {} 
                 game.is_pk_round = True
-                game.pk_targets = top_targets # [紀錄] 誰在台上
-                
+                game.pk_targets = top_targets 
                 msg = f"平票 ({', '.join(top_targets)})，請針對這些人重新投票！"
                 emit('vote_pk', {'targets': top_targets, 'msg': msg}, room=room)
                 return
 
-        # 狀況 C: 有明確的最高票 -> 處決
         else:
             victim_name = top_targets[0]
             victim_sid = None
@@ -666,9 +660,8 @@ def on_day_vote(data):
 
             game.is_pk_round = False 
             game.pk_targets = []
-            game.shoot_queue = [] # 清空
+            game.shoot_queue = []
 
-            # [修改] 檢查死者是否能開槍
             if victim_sid:
                 role = game.players[victim_sid]['role']
                 if role in ['狼王', '獵人']:
@@ -680,7 +673,7 @@ def on_day_vote(data):
                 game.phase = 'setup'
             else:
                 if game.shoot_queue:
-                    game.next_phase_after_shoot = 'day_vote_result' # 開完槍後顯示入夜按鈕
+                    game.next_phase_after_shoot = 'day_vote_result' 
                     process_shoot_queue(room)
                 else:
                     emit('vote_result_final', {}, room=room)
