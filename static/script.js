@@ -553,12 +553,27 @@ socket.on('connect', () => {
 });
 
 // [新增] 監聽視窗切換 (當玩家切回來時)
+// ... (上面監聽 visibilitychange 的部分維持原樣)
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-        // 如果切回來時發現斷線了，嘗試重連
         if (!socket.connected) {
             console.log("切回視窗，嘗試重連...");
             socket.connect();
         }
     }
 });
+
+// [補回] 網頁載入時，檢查有沒有舊的登入資料 (F5 自動重連)
+window.onload = function() {
+    const savedName = localStorage.getItem('ww_username');
+    const savedRoom = localStorage.getItem('ww_room');
+
+    if (savedName && savedRoom) {
+        console.log("偵測到舊紀錄，自動填入...");
+        document.getElementById('username').value = savedName;
+        document.getElementById('room').value = savedRoom;
+        
+        // 如果想要自動幫他按加入，可以把下面這行註解打開：
+        // joinGame(); 
+    }
+};
