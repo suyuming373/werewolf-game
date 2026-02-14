@@ -519,6 +519,11 @@ def on_action(data):
 
     # --- 🧪 女巫毒藥 ---
     elif action_type == 'witch_poison' and player['role'] == '女巫':
+        # [新增] 互斥檢查：如果今晚已經用過解藥，就不能用毒藥
+        if game.night_actions['witch_action']['save']:
+             emit('action_result', {'msg': '❌ 一晚只能使用一瓶藥！'}, room=request.sid)
+             return
+
         if game.witch_potions['poison']:
             game.night_actions['witch_action']['poison'] = target
             game.witch_potions['poison'] = False
@@ -526,18 +531,20 @@ def on_action(data):
         else:
             emit('action_result', {'msg': '❌ 毒藥已經用完了'}, room=request.sid)
 
-    # --- 🧪 女巫解藥 (本次修正重點) ---
+    # --- 🧪 女巫解藥 ---
     elif action_type == 'witch_save' and player['role'] == '女巫':
-        # [修改] 移除 witch_notified 的嚴格檢查，只要還有藥水就能用
-        # 這樣就算狼人還沒殺人，女巫也能先按 (雖然沒意義，但不會報錯卡死)
+        # [新增] 互斥檢查：如果今晚已經用過毒藥，就不能用解藥
+        if game.night_actions['witch_action']['poison']:
+             emit('action_result', {'msg': '❌ 一晚只能使用一瓶藥！'}, room=request.sid)
+             return
+
         if game.witch_potions['heal']:
             game.night_actions['witch_action']['save'] = True
             game.witch_potions['heal'] = False
-            print(f"-> 女巫使用了解藥 (救 {target})")
             emit('action_result', {'msg': '🧪 已使用解藥 (今晚將是平安夜)'}, room=request.sid)
         else:
             emit('action_result', {'msg': '❌ 解藥已經用完了'}, room=request.sid)
-
+            
     # --- 🛡️ 守衛行動 ---
     elif action_type == 'guard_protect' and player['role'] == '守衛':
         # [新增] 檢查是否連續守衛同一人
@@ -554,7 +561,7 @@ def on_action(data):
         game.night_actions['guard_protect'] = None
         emit('guard_selection', {'target': '空守 (不守護)'}, room=request.sid)
         emit('action_result', {'msg': '🛡️ 你選擇了今晚不守護任何人'}, room=request.sid)
-        
+
 @socketio.on('shoot_action')
 def on_shoot(data):
     room = data['room']

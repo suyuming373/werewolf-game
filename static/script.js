@@ -144,39 +144,44 @@ function usePotion(type) {
         const victimElem = document.getElementById('victim-name');
         const victim = victimElem ? victimElem.innerText : "";
         
-        // 防呆：如果還不知道死者，不能亂按
         if (!victim || victim === "(等待狼人行動...)" || victim === "未知") {
             showToast("⚠️ 還不知道狼人殺了誰，無法使用解藥！");
             return;
         }
 
-        // 確認使用
         showConfirm(`🧪 確定要對 ${victim} 使用解藥嗎？`, () => {
             socket.emit('night_action', {room: myRoom, type: 'witch_save', target: victim});
             
-            // 鎖定按鈕
+            // [新增] 鎖定解藥按鈕
             const saveBtn = document.getElementById('btn-save');
             if (saveBtn) {
                 saveBtn.disabled = true;
                 saveBtn.innerText = "已使用解藥";
             }
+            
+            // [新增] 也要鎖定毒藥按鈕 (一晚限一瓶)
+            const poisonBtn = document.getElementById('btn-poison');
+            if (poisonBtn) {
+                poisonBtn.disabled = true;
+                poisonBtn.innerText = "無法使用 (限一瓶)";
+                poisonBtn.style.background = "#555";
+            }
+            
             showToast("已送出解藥指令");
         });
 
     } else if (type === 'poison') {
         // --- 毒藥邏輯 ---
-        selectedAction = 'poison'; // 標記：現在點頭像 = 下毒
+        selectedAction = 'poison'; 
         
         showToast("☠️ 請點擊下方一名「玩家頭像」進行下毒！");
         
-        // 視覺回饋：讓毒藥按鈕變色，提示正在使用中
         const pBtn = document.getElementById('btn-poison');
         if (pBtn) {
             pBtn.innerText = "請選擇目標...";
             pBtn.style.border = "2px solid white";
         }
         
-        // 解鎖所有頭像 (讓女巫可以選人)
         document.querySelectorAll('.player-btn').forEach(btn => {
             btn.disabled = false;
             btn.style.cursor = "pointer";
@@ -669,6 +674,14 @@ function handlePlayerClick(targetName) {
                     pBtn.disabled = true;
                     pBtn.innerText = "已使用毒藥";
                     pBtn.style.border = "none";
+                }
+                
+                // [新增] 毒完人，解藥也要鎖起來 (一晚限一瓶)
+                const saveBtn = document.getElementById('btn-save');
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.innerText = "無法使用 (限一瓶)";
+                    saveBtn.style.background = "#555";
                 }
                 
                 // 恢復 UI
