@@ -7,7 +7,7 @@ app.config['SECRET_KEY'] = 'werewolf_secret_key'
 # [修改] 加入 ping_timeout 和 ping_interval
 # ping_timeout=60: 允許客戶端 60 秒不說話 (切窗緩衝時間)
 # ping_interval=25: 每 25 秒檢查一次心跳
-socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
+socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=1200, ping_interval=25)
 
 games = {}
 
@@ -284,38 +284,61 @@ def on_join(data):
         # === 情況 A: 這是舊玩家 (重連) ===
         print(f"♻️ {username} 重連成功 (SID: {target_old_sid} -> {request.sid})")
         
-        # A-1. 搬移資料 (把舊帳號的資料，綁定到新連線 ID)
+        # A-1. 搬移基本資料
         player_data = game.players.pop(target_old_sid)
         game.players[request.sid] = player_data
         
-        # A-2. 轉移房主權限 (如果他是房主)
+        # A-2. 轉移房主權限
         if game.host_sid == target_old_sid:
             game.host_sid = request.sid
             player_data['is_host'] = True 
             
-        # A-3. 轉移投票紀錄 (如果他剛剛投過票)
+        # A-3. [關鍵修復] 轉移「準備狀態」 (防止 KeyError 崩潰)
+        if target_old_sid in game.ready_players:
+            game.ready_players.remove(target_old_sid)
+            game.ready_players.add(request.sid)
+
+        # A-4. [關鍵修復] 轉移「開槍隊列」 (防止獵人重連後不能開槍)
+        if target_old_sid in game.shoot_queue:
+            idx = game.shoot_queue.index(target_old_sid)
+            game.shoot_queue[idx] = request.sid
+        if game.shooter_sid == target_old_sid:
+            game.shooter_sid = request.sid
+
+        # A-5. [關鍵修復] 轉移「狼人投票」 (防止狼隊友看到舊 ID)
+        if target_old_sid in game.night_actions['wolf_votes']:
+            vote_target = game.night_actions['wolf_votes'].pop(target_old_sid)
+            game.night_actions['wolf_votes'][request.sid] = vote_target
+
+        # A-6. 轉移「白天投票」
         if target_old_sid in game.day_votes:
             game.day_votes[request.sid] = game.day_votes.pop(target_old_sid)
             
-        # A-4. 回傳加入成功 (讓前端切換畫面)
+        # A-7. 回傳加入成功
         emit('join_success', {'room': room, 'is_host': player_data['is_host']}, room=request.sid)
         
-        # === [關鍵修復] 如果遊戲已經開始，要補發「身分證」和「遊戲狀態」 ===
+        # === A-8. 補發遊戲狀態 (讓前端畫面同步) ===
         if game.phase != 'setup':
-            # 1. 補發身分 (這會讓前端從大廳切換到遊戲畫面！)
+            # 1. 補發身分
             emit('game_info', {
                 'role': player_data['role'], 
                 'number': player_data['number']
             }, room=request.sid)
             
-            # 2. 補發現在是白天還是晚上
+            # 2. 補發階段與狀態
             emit('phase_change', {
                 'phase': game.phase, 
-                'dead': [], # 剛連回來不顯示死亡通知
-                'potions': game.witch_potions
+                'dead': [], 
+                'potions': game.witch_potions,
+                # 如果正在開槍階段，要告訴他是誰在開槍
+                'shooter': game.players[game.shooter_sid]['name'] if game.shooter_sid else None
             }, room=request.sid)
             
-            # 3. 補發狼隊友 (如果是狼，不然他會看不到隊友)
+            # 3. 如果輪到他開槍，補發開槍指令
+            if game.phase == 'shoot' and game.shooter_sid == request.sid:
+                emit('your_turn_to_shoot', {}, room=request.sid)
+
+            # 4. 補發狼隊友
             if player_data['role'] in ['狼人', '狼王']:
                 teammates = []
                 for s, p in game.players.items():
@@ -323,13 +346,10 @@ def on_join(data):
                         teammates.append({'name': p['name'], 'role': p['role']})
                 emit('wolf_teammates', {'teammates': teammates}, room=request.sid)
 
-            # 4. 補個提示
             emit('action_result', {'msg': '⚡ 歡迎回來！已恢復連線。'}, room=request.sid)
 
     else:
         # === 情況 B: 這是新玩家 ===
-        
-        # 防呆：如果遊戲已經開始，且不是重連，禁止加入 (或只能觀戰)
         if game.phase != 'setup':
              emit('start_failed', {'msg': '遊戲已經開始，無法中途加入！'}, room=request.sid)
              return
@@ -342,7 +362,6 @@ def on_join(data):
             'is_host': False
         }
         
-        # 房主判定 (如果沒房主，他就是房主)
         if game.host_sid is None or game.host_sid not in game.players:
             game.host_sid = request.sid
             game.players[request.sid]['is_host'] = True
