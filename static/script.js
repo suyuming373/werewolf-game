@@ -903,22 +903,36 @@ window.onload = function() {
 };
 
 
-// ================== 上帝模式邏輯 ==================
+// ================== 上帝模式邏輯 (修正版) ==================
 
-// 1. 上帝登入成功 -> 顯示黑底介面
+// 1. 上帝登入成功
 socket.on('admin_login_success', (data) => {
-    // 隱藏登入頁
-    document.getElementById('login-view').classList.add('hidden');
-    // 顯示上帝面板
-    document.getElementById('god-mode-panel').classList.remove('hidden');
+    console.log("上帝登入成功", data);
     
-    // 填入初始資料
+    // 強制隱藏其他頁面
+    document.getElementById('login-view').classList.add('hidden');
+    document.getElementById('lobby-view').classList.add('hidden');
+    document.getElementById('game-view').classList.add('hidden');
+    
+    // 顯示上帝面板
+    const godPanel = document.getElementById('god-mode-panel');
+    if (godPanel) {
+        godPanel.classList.remove('hidden');
+        godPanel.style.display = 'block'; // 強制顯示
+    }
+    
+    // 填入資料
     updateGodUI(data.player_info);
+    
+    // 顯示當前階段
+    const msgDisplay = document.getElementById('god-msg-display');
+    if(msgDisplay) msgDisplay.innerText = `目前階段：${data.phase}`;
 });
 
 // 2. 接收狀態刷新
 socket.on('admin_update_ui', (data) => {
-    document.getElementById('god-msg-display').innerText = data.msg;
+    const msgDisplay = document.getElementById('god-msg-display');
+    if(msgDisplay) msgDisplay.innerText = data.msg;
     updateGodUI(data.player_info);
 });
 
@@ -930,29 +944,34 @@ function adminAction(action) {
     socket.emit('admin_action', { room: myRoom, action: action });
 }
 
-// 4. 更新列表 UI (上色)
+// 4. 更新列表 UI (上色與防呆)
 function updateGodUI(infoList) {
     const list = document.getElementById('god-player-list');
+    if (!list) return;
+    
     list.innerHTML = "";
     
     if (infoList && infoList.length > 0) {
         infoList.forEach(info => {
             const li = document.createElement('li');
             li.innerText = info;
-            li.style.borderBottom = "1px solid #333";
-            li.style.padding = "5px 0";
+            li.style.borderBottom = "1px solid #444";
+            li.style.padding = "5px 10px";
             
             // 關鍵字上色
             if (info.includes("狼")) li.style.color = "#ff5252";       // 紅色
             else if (info.includes("預言家")) li.style.color = "#e040fb"; // 紫色
             else if (info.includes("女巫")) li.style.color = "#ff4081";   // 粉色
             else if (info.includes("獵人")) li.style.color = "#ff9800";   // 橘色
-            else if (info.includes("💀")) li.style.opacity = "0.5";       // 死人變暗
-            else li.style.color = "#fff";
+            else if (info.includes("💀")) {
+                li.style.color = "#888"; // 死人灰色
+                li.style.textDecoration = "line-through";
+            }
+            else li.style.color = "#fff"; // 平民/準備中 白色
             
             list.appendChild(li);
         });
     } else {
-        list.innerHTML = "<li style='color: #888;'>目前無人加入</li>";
+        list.innerHTML = "<li style='color: #aaa; padding: 10px;'>目前房間空無一人...</li>";
     }
 }

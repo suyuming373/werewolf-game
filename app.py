@@ -276,26 +276,35 @@ def on_join(data):
     
     game = games[room]
 
-    # === [新增] 上帝模式 (觀戰者) ===
-    # 當名字是 "admin888" (這是通關密語)
+    # === [修正版] 上帝模式邏輯 ===
     if username == 'admin888':
         game.admin_sid = request.sid
         print(f"🕵️ 上帝 ({request.sid}) 已潛入房間 {room}")
         
-        # 整理當前所有人的身分底牌
+        # 建立玩家列表資料
         player_info = []
-        for p in game.players.values():
-            status = "❤️ 活" if p['alive'] else "💀 死"
-            player_info.append(f"{p['number']}號 {p['name']} ({p['role']}) - {status}")
+        if not game.players:
+            player_info.append("目前房間空無一人...")
+        else:
+            for p in game.players.values():
+                # 判定存活狀態 (預設 setup 階段是活的)
+                is_alive = p.get('alive', True)
+                status_icon = "❤️" if is_alive else "💀"
+                
+                # 判定身分 (如果還沒開始，身分是 None)
+                role_text = p.get('role') if p.get('role') else "準備中"
+                
+                # 組合文字： [1號] 小明 (狼人) - ❤️
+                num_str = f"[{p['number']}號]" if p['number'] > 0 else "[--]"
+                player_info.append(f"{num_str} {p['name']} ({role_text}) {status_icon}")
             
-        # 告訴前端：登入成功，開啟上帝面板
         emit('admin_login_success', {
             'room': room, 
             'player_info': player_info,
             'phase': game.phase
         }, room=request.sid)
         
-        return # [重要] 結束函式！不執行下面的玩家加入邏輯 (不佔位)
+        return 
     # ===============================
     
     # --- 1. 搜尋是否有同名舊玩家 (斷線重連判定) ---
@@ -866,13 +875,19 @@ def on_admin_action(data):
         pending = [p['name'] for sid, p in game.players.items() if p['alive'] and sid not in game.ready_players]
         status_msg = f"階段: {game.phase} | 等待: {', '.join(pending) if pending else '無'}"
         
-        # 重新整理身分列表回傳
+        # 重新整理身分列表回傳 (這裡也要用一樣的邏輯)
         player_info = []
-        for p in game.players.values():
-            status = "❤️" if p['alive'] else "💀"
-            player_info.append(f"{p['number']}號 {p['name']} ({p['role']}) - {status}")
+        if not game.players:
+            player_info.append("目前房間空無一人...")
+        else:
+            for p in game.players.values():
+                is_alive = p.get('alive', True)
+                status_icon = "❤️" if is_alive else "💀"
+                role_text = p.get('role') if p.get('role') else "準備中"
+                num_str = f"[{p['number']}號]" if p['number'] > 0 else "[--]"
+                player_info.append(f"{num_str} {p['name']} ({role_text}) {status_icon}")
 
-        emit('admin_update_ui', {'msg': status_msg, 'player_info': player_info}, room=request.sid)
+        emit('admin_update_ui', {'msg': f"刷新成功! 階段: {game.phase}", 'player_info': player_info}, room=request.sid)
 
     # 2. 強制天亮 (跳過結算)
     elif action == 'force_day':
