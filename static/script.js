@@ -312,6 +312,18 @@ function logout() {
     });
 }
 
+// 2. 發送指令的函式
+function adminAction(action) {
+    if (!amIHost) return;
+    
+    // 加個確認防止手殘
+    if (action.includes('force') && !confirm("確定要強制跳過目前階段嗎？\n(這可能會導致部分技能沒結算)")) {
+        return;
+    }
+
+    socket.emit('admin_action', { room: myRoom, action: action });
+}
+
 // ================== Socket 監聽與邏輯區 ==================
 
 socket.on('join_success', (data) => {
@@ -470,6 +482,14 @@ socket.on('update_players', (data) => {
         } else {
             ingameControls.classList.add('hidden');
         }
+    }
+
+    // [新增] 如果我是房主，顯示救難包
+    const adminPanel = document.getElementById('admin-panel');
+    if (amIHost && adminPanel) {
+        adminPanel.classList.remove('hidden');
+    } else if (adminPanel) {
+        adminPanel.classList.add('hidden');
     }
 
 });
@@ -887,6 +907,44 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
+// [新增] 上帝登入成功
+socket.on('admin_login_success', (data) => {
+    // 1. 隱藏登入頁，顯示遊戲頁 (但我們會用上帝面板蓋住它)
+    document.getElementById('login-view').classList.add('hidden');
+    document.getElementById('game-view').classList.remove('hidden');
+    
+    // 2. 顯示上帝面板
+    const godPanel = document.getElementById('god-mode-panel');
+    godPanel.classList.remove('hidden');
+    
+    // 3. 設定權限 (讓你可以按那些按鈕)
+    amIHost = true; // 這裡偷懶設為 true，因為我們前端 adminAction 有檢查 amIHost，後端也有檢查 admin_sid
+    
+    // 4. 更新身分列表
+    updateGodRoleList(data.roles_reveal);
+    document.getElementById('god-phase-display').innerText = data.current_phase;
+    
+    addLog("🕵️ 上帝模式啟動");
+});
+
+// [新增] 更新身分列表函式
+function updateGodRoleList(roles) {
+    const list = document.getElementById('god-roles-list');
+    list.innerHTML = "";
+    roles.forEach(info => {
+        const li = document.createElement('li');
+        li.innerText = info;
+        li.style.borderBottom = "1px solid #444";
+        li.style.padding = "5px";
+        list.appendChild(li);
+    });
+}
+
+// [修改] 監聽 socket 更新，讓身分列表保持最新
+// 我們可以利用既有的 update_players，但因為你是上帝，不再玩家列表裡，
+// 所以原本的 update_players 可能不會送給你 (看你的後端寫法)。
+// 簡單起見，我們利用 adminAction('check_status') 回傳的結果來監控。
+
 // 網頁載入時自動重連 (非手動登出時)
 window.onload = function() {
     const savedName = localStorage.getItem('ww_username');
@@ -900,3 +958,64 @@ window.onload = function() {
         joinGame(); 
     }
 };
+
+// [新增] 上帝登入成功處理
+socket.on('admin_login_success', (data) => {
+    // 1. 隱藏登入介面
+    document.getElementById('login-view').classList.add('hidden');
+    
+    // 2. 顯示上帝監控室 (蓋住原本的遊戲畫面)
+    const godPanel = document.getElementById('god-mode-panel');
+    godPanel.classList.remove('hidden');
+    
+    // 3. 填入玩家底牌
+    updateGodUI(data.player_info);
+    
+    addLog("🕵️ 上帝模式已啟動");
+});
+
+// [新增] 用來更新上帝介面的玩家列表
+function updateGodUI(infoList) {
+    const list = document.getElementById('god-player-list');
+    list.innerHTML = "";
+    
+    if (infoList && infoList.length > 0) {
+        infoList.forEach(info => {
+            const li = document.createElement('li');
+            li.innerText = info;
+            li.style.borderBottom = "1px solid #333";
+            li.style.padding = "5px 0";
+            
+            // 根據關鍵字上色
+            if (info.includes("狼")) li.style.color = "#ff5252"; // 紅色
+            else if (info.includes("預言家")) li.style.color = "#e040fb"; // 紫色
+            else if (info.includes("女巫")) li.style.color = "#ff4081"; // 粉色
+            else if (info.includes("💀")) li.style.opacity = "0.5"; // 死人變暗
+            else li.style.color = "#fff"; // 其他白色
+            
+            list.appendChild(li);
+        });
+    } else {
+        list.innerHTML = "<li style='color: #888;'>目前無人加入</li>";
+    }
+}
+
+// [修改] 發送指令 (現在只有上帝能用)
+function adminAction(action) {
+    // 增加確認框，怕上帝手滑
+    if (action.includes('force') || action === 'reset_game') {
+        if (!confirm("⚠️ 確定要執行此強制操作嗎？")) return;
+    }
+    socket.emit('admin_action', { room: myRoom, action: action });
+}
+
+// [小技巧] 利用 check_status 的回傳結果來刷新列表
+// 因為 check_status 會回傳 msg，我們可以稍微修改後端讓它回傳最新列表，
+// 但為了不改動太多，我們這裡暫時手動按「查兇手」時，順便在 Console 看結果就好。
+// 或是你可以依賴 socket.on('update_players')，因為上帝也在房間裡，會收到 update_players。
+socket.on('update_players', (data) => {
+    // 如果上帝面板是開啟的，我們雖然沒有 role 資訊 (普通 update_players 不含身分)，
+    // 但我們至少知道有誰在。
+    // *進階作法*：如果想要即時更新身分，可以在後端 update_players 時，特地發一份給 admin_sid。
+    // *簡單作法*：上帝想看最新狀態時，按一下「查兇手」，後端再補發一次 admin_login_success 類型的封包即可。
+});
