@@ -744,8 +744,29 @@ def on_day_vote(data):
 def on_go_night(data):
     room = data['room']
     game = games[room]
+    
+    # 1. 切換階段
     game.phase = 'night'
+    
+    # 2. [關鍵修正] 重置「今晚的行動紀錄」
+    # 必須把昨晚的紀錄洗掉，今晚才能重新行動！
+    game.night_actions = {
+        'wolf_votes': {},
+        'seer_has_checked': False,
+        'witch_action': {'save': False, 'poison': None}, # 這裡歸零，你才能用下一瓶藥
+        'guard_protect': None,
+        'witch_notified': False
+    }
+    
+    # 3. 清空準備狀態
+    game.ready_players = set()
+    
+    # 4. 通知前端
     emit('phase_change', {'phase': 'night', 'potions': game.witch_potions}, room=room)
+    
+    # 建議順便更新一下玩家列表
+    emit('update_players', {'players': game.get_player_list()}, room=room)
+    
     auto_ready_passives(room)
 
 @socketio.on('disconnect')

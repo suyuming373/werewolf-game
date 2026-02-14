@@ -482,13 +482,38 @@ socket.on('phase_change', (data) => {
             const vName = document.getElementById('victim-name');
             if(vName) vName.innerText = "等待狼人行動...";
             
+            // 1. 重置解藥按鈕 (這段原本就有)
             const saveBtn = document.getElementById('btn-save');
             if (saveBtn) {
-                saveBtn.disabled = true;
+                // 先假設可以按，除非...
+                saveBtn.disabled = false; 
                 if (data.potions && !data.potions.heal) {
+                    saveBtn.disabled = true;
                     saveBtn.innerText = "解藥已用完";
                 } else {
                     saveBtn.innerText = "使用解藥";
+                    saveBtn.style.background = "#e040fb"; // 恢復顏色
+                }
+            }
+
+            // 2. [新增] 重置毒藥按鈕 (這段是漏掉的！)
+            // 每一晚開始時，都要檢查毒藥還在不在，如果在就要「解鎖」
+            const poisonBtn = document.getElementById('btn-poison');
+            if (poisonBtn) {
+                // 先假設可以按
+                poisonBtn.disabled = false; 
+                
+                if (data.potions && !data.potions.poison) {
+                    // 真的用完了才鎖
+                    poisonBtn.disabled = true;
+                    poisonBtn.innerText = "毒藥已用完";
+                    poisonBtn.style.border = "none";
+                    poisonBtn.style.background = "#555";
+                } else {
+                    // 還沒用完 -> 恢復成可按狀態
+                    poisonBtn.innerText = "使用毒藥";
+                    poisonBtn.style.border = "none";
+                    poisonBtn.style.background = "#9c27b0"; // 恢復原本紫色
                 }
             }
         }
