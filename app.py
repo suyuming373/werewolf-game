@@ -184,6 +184,8 @@ def process_shoot_queue(room):
             
         elif game.next_phase_after_shoot == 'day_vote_result':
             # 投票結束後的結算
+            # [建議] 把階段改回 day_vote 或一個過渡狀態，避免系統還以為在 shoot
+            game.phase = 'day_vote_finished' 
             emit('vote_result_final', {}, room=room)
 
 def check_win_condition(game):
