@@ -97,7 +97,10 @@
         <div id="guard-area" class="card hidden" style="border: 1px solid #4caf50;">
             <h4 style="color: #4caf50; margin:0 0 10px 0;">🛡️ 守衛視角</h4>
             <p>目前守護：<span id="guard-target" style="color: lightgreen; font-weight: bold;">尚未選擇</span></p>
-            <p style="font-size: 0.8em; color: #aaa;">(點擊頭像切換對象，確定後按結束回合)</p>
+            
+            <button onclick="skipGuard()" style="background: #555; border: 1px solid #aaa;">🚫 本局空守</button>
+            
+            <p style="font-size: 0.8em; color: #aaa; margin-top: 10px;">(點擊頭像切換對象，不可連續守同一人)</p>
         </div>
 
         <div id="log-area"></div>

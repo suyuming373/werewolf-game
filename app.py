@@ -32,6 +32,7 @@ class Game:
             'witch_action': {'save': False, 'poison': None}, 
             'guard_protect': None, 'witch_notified': False
         }
+        self.last_guard_target = None
         self.witch_potions = {'heal': True, 'poison': True}
         self.day_votes = {}
         self.pending_phase = None 
@@ -204,6 +205,10 @@ def check_and_process_night_end(room):
         if game.players[sid]['alive']: ready_alive_count += 1
     
     if ready_alive_count >= total_alive and total_alive > 0:
+
+        # [新增] 在重置夜晚行動前，先備份守衛今晚守了誰
+        # 這樣明天晚上就能檢查「不能連續守同一人」
+        game.last_guard_target = game.night_actions['guard_protect']
         
         # [關鍵步驟 1] 在結算前，先紀錄誰被毒了 (因為 calculate 會清空 night_actions)
         poison_target_name = game.night_actions['witch_action']['poison']
@@ -535,10 +540,21 @@ def on_action(data):
 
     # --- 🛡️ 守衛行動 ---
     elif action_type == 'guard_protect' and player['role'] == '守衛':
+        # [新增] 檢查是否連續守衛同一人
+        if game.last_guard_target is not None and target == game.last_guard_target:
+            emit('action_result', {'msg': f'❌ 規則限制：不能連續兩晚守護同一人 ({target})'}, room=request.sid)
+            return
+
         game.night_actions['guard_protect'] = target
         emit('guard_selection', {'target': target}, room=request.sid)
         emit('action_result', {'msg': f'🛡️ 已選擇守護 {target}'}, room=request.sid)
 
+    # [新增] 守衛選擇「空守」(不守任何人)
+    elif action_type == 'guard_skip' and player['role'] == '守衛':
+        game.night_actions['guard_protect'] = None
+        emit('guard_selection', {'target': '空守 (不守護)'}, room=request.sid)
+        emit('action_result', {'msg': '🛡️ 你選擇了今晚不守護任何人'}, room=request.sid)
+        
 @socketio.on('shoot_action')
 def on_shoot(data):
     room = data['room']

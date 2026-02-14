@@ -196,6 +196,22 @@ function lockWitchUI() {
     });
 }
 
+// [新增] 守衛空守
+function skipGuard() {
+    if (!isAlive) return;
+    
+    // 這裡可以直接送出，也可以加個確認窗
+    showConfirm("確定今晚【不守護】任何人嗎？", () => {
+        socket.emit('night_action', {room: myRoom, type: 'guard_skip'});
+        
+        // 視覺回饋：把所有頭像變灰，表示你選了空守
+        document.querySelectorAll('.player-btn').forEach(btn => {
+            btn.style.border = "none";
+            btn.style.opacity = "0.5";
+        });
+    });
+}
+
 // ================== 其他操作功能 ==================
 
 function voteAbstain() {
