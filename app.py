@@ -576,22 +576,30 @@ def on_action(data):
         else:
             emit('action_result', {'msg': '❌ 解藥已經用完了'}, room=request.sid)
 
-    # --- 🛡️ 守衛行動 ---
+   # --- 🛡️ 守衛行動 ---
     elif action_type == 'guard_protect' and player['role'] == '守衛':
-        # [新增] 檢查是否連續守衛同一人
+        # (互斥檢查保留)
         if game.last_guard_target is not None and target == game.last_guard_target:
             emit('action_result', {'msg': f'❌ 規則限制：不能連續兩晚守護同一人 ({target})'}, room=request.sid)
             return
 
         game.night_actions['guard_protect'] = target
         emit('guard_selection', {'target': target}, room=request.sid)
-        emit('action_result', {'msg': f'🛡️ 已選擇守護 {target}'}, room=request.sid)
+        
+        # [關鍵修正] 補上這兩行，告訴系統「守衛好了」
+        emit('action_result', {'msg': f'🛡️ 已選擇守護 {target} (回合結束)'}, room=request.sid)
+        game.ready_players.add(request.sid)  # 標記為已準備
+        check_and_process_night_end(room)    # 嘗試結算夜晚
 
     # [新增] 守衛選擇「空守」(不守任何人)
     elif action_type == 'guard_skip' and player['role'] == '守衛':
         game.night_actions['guard_protect'] = None
         emit('guard_selection', {'target': '空守 (不守護)'}, room=request.sid)
-        emit('action_result', {'msg': '🛡️ 你選擇了今晚不守護任何人'}, room=request.sid)
+        
+        # [關鍵修正] 空守也要補上這兩行
+        emit('action_result', {'msg': '🛡️ 你選擇了今晚不守護任何人 (回合結束)'}, room=request.sid)
+        game.ready_players.add(request.sid)  # 標記為已準備
+        check_and_process_night_end(room)    # 嘗試結算夜晚
 
 @socketio.on('shoot_action')
 def on_shoot(data):
