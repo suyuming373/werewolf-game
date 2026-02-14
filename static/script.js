@@ -975,3 +975,15 @@ function updateGodUI(infoList) {
         list.innerHTML = "<li style='color: #aaa; padding: 10px;'>目前房間空無一人...</li>";
     }
 }
+
+// [新增] 上帝專用登出 (使用原生 confirm，避免被黑畫面擋住)
+function godLeave() {
+    if (confirm("🕵️ 確定要離開上帝模式嗎？")) {
+        // 1. 清除紀錄
+        localStorage.removeItem('ww_username');
+        localStorage.removeItem('ww_room');
+        
+        // 2. 重新整理
+        location.reload();
+    }
+}
