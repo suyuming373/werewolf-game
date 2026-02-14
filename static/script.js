@@ -728,7 +728,7 @@ function handlePlayerClick(targetName) {
     console.log(`點擊: ${targetName}, 階段: ${currentPhase}, 存活: ${isAlive}`);
 
     // 只有在「不是」開槍階段時，才阻擋死人操作
-    if (!isAlive && currentPhase !== 'shoot') return; {
+    if (!isAlive && currentPhase !== 'shoot'){
         showToast("👻 你已經死亡，無法操作！");
         return;
     }
