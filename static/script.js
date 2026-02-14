@@ -53,6 +53,25 @@ function showConfirm(msg, callback) {
     }
 }
 
+function endTurn() {
+    // 鎖定按鈕避免重複點擊
+    const btn = document.getElementById('btn-end-turn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = "已確認，等待天亮...";
+    }
+    
+    // 鎖定女巫的其他按鈕 (既然都要結束了，就不能再用藥)
+    const saveBtn = document.getElementById('btn-save');
+    const poisonBtn = document.getElementById('btn-poison');
+    if (saveBtn) saveBtn.disabled = true;
+    if (poisonBtn) poisonBtn.disabled = true;
+
+    // 發送確認訊號給後端
+    // 後端收到 confirm_turn 會把你加入 ready_players
+    socket.emit('confirm_turn', { room: myRoom });
+}
+
 function closeModal() {
     const modal = document.getElementById('custom-modal');
     if (modal) modal.classList.add('hidden');
