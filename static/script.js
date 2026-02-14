@@ -214,19 +214,44 @@ function lockWitchUI() {
     selectedAction = null;
 }
 
+// [新增] 鎖定守衛介面
+function lockGuardUI() {
+    // 鎖定所有頭像
+    document.querySelectorAll('.player-btn').forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = "0.6";
+        btn.style.border = "none";
+    });
+
+    // 鎖定空守按鈕 (如果有的話)
+    // 這裡我們假設空守按鈕的 onclick 是 skipGuard()，我們可以透過 querySelector 抓它
+    // 或者你可以給空守按鈕一個 id="btn-skip-guard" 會更準確，這裡先用通用的方式鎖
+    const buttons = document.getElementsByTagName('button');
+    for (let btn of buttons) {
+        if (btn.innerText.includes("空守")) {
+            btn.disabled = true;
+            btn.innerText = "已選擇空守";
+        }
+    }
+
+    // 鎖定結束回合按鈕
+    const endBtn = document.getElementById('btn-end-turn');
+    if (endBtn) {
+        endBtn.disabled = true;
+        endBtn.innerText = "已行動 / 等待天亮...";
+    }
+}
+
 // [新增] 守衛空守
 function skipGuard() {
     if (!isAlive) return;
     
-    // 這裡可以直接送出，也可以加個確認窗
     showConfirm("確定今晚【不守護】任何人嗎？", () => {
         socket.emit('night_action', {room: myRoom, type: 'guard_skip'});
         
-        // 視覺回饋：把所有頭像變灰，表示你選了空守
-        document.querySelectorAll('.player-btn').forEach(btn => {
-            btn.style.border = "none";
-            btn.style.opacity = "0.5";
-        });
+        // [新增] 鎖定介面
+        lockGuardUI();
+        showToast("已選擇空守，回合結束");
     });
 }
 
@@ -491,7 +516,7 @@ socket.on('phase_change', (data) => {
         title.style.color = "#9c27b0";
         addLog("=== 進入夜晚 ===");
         
-        if ((myRole === '女巫' || myRole === '守衛') && isAlive) {
+        if (myRole === '女巫' && isAlive) {
             if(endBtn) {
                 endBtn.classList.remove('hidden');
                 endBtn.disabled = false;
@@ -761,13 +786,33 @@ function handlePlayerClick(targetName) {
              showToast("⚠️ 請先點擊上方的「毒藥」按鈕，再選擇頭像！");
         }
         else if (myRole === '預言家') {
-            socket.emit('night_action', {room: myRoom, type: 'seer_check', target: targetName});
+            // [修改] 預言家查驗前 -> 彈出確認窗 (猶豫時間)
+            showConfirm(`🔮 確定要查驗 【${targetName}】 的身分嗎？`, () => {
+                socket.emit('night_action', {room: myRoom, type: 'seer_check', target: targetName});
+                
+                // 按下確定後，鎖定介面 (防止重複點擊)
+                document.querySelectorAll('.player-btn').forEach(btn => {
+                    btn.disabled = true;
+                    btn.style.opacity = "0.6";
+                    btn.style.border = "none";
+                });
+                
+                showToast("🔮 正在查驗中...");
+            });
         }
         else if (myRole === '狼人' || myRole === '狼王') {
             socket.emit('night_action', {room: myRoom, type: 'wolf_vote', target: targetName});
         }
         else if (myRole === '守衛') {
-            socket.emit('night_action', {room: myRoom, type: 'guard_protect', target: targetName});
+            // [修改] 守衛點擊頭像 -> 彈出確認窗
+            showConfirm(`🛡️ 確定要今晚守護 【${targetName}】 嗎？`, () => {
+                socket.emit('night_action', {room: myRoom, type: 'guard_protect', target: targetName});
+                
+                // 按下確定後，鎖定介面並提示
+                lockGuardUI();
+                showToast(`已守護 ${targetName}，回合結束`);
+            });
+            // 如果按取消，什麼事都不會發生，守衛可以重新選人
         }
         else {
             showToast("天黑請閉眼，現在不是你的行動時間。");
