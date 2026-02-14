@@ -275,24 +275,28 @@ def on_join(data):
         games[room] = Game(room)
     
     game = games[room]
-    
-    # --- [新增] 上帝模式判斷 ---
-    # 如果名字是 "admin888" (或是你自己想的密碼)，就進入觀戰模式
+
+    # === [新增] 上帝模式 (觀戰者) ===
+    # 當名字是 "admin888" (這是通關密語)
     if username == 'admin888':
-        print(f"🕵️ 上帝 ({request.sid}) 已潛入房間 {room}")
         game.admin_sid = request.sid
+        print(f"🕵️ 上帝 ({request.sid}) 已潛入房間 {room}")
         
-        # 告訴前端：你是上帝，並把所有人的底牌傳給你看
-        all_roles = []
+        # 整理當前所有人的身分底牌
+        player_info = []
         for p in game.players.values():
-            all_roles.append(f"{p['name']}: {p['role']} ({'活' if p['alive'] else '死'})")
+            status = "❤️ 活" if p['alive'] else "💀 死"
+            player_info.append(f"{p['number']}號 {p['name']} ({p['role']}) - {status}")
             
+        # 告訴前端：登入成功，開啟上帝面板
         emit('admin_login_success', {
             'room': room, 
-            'roles_reveal': all_roles,
-            'current_phase': game.phase
+            'player_info': player_info,
+            'phase': game.phase
         }, room=request.sid)
-        return  # [重要] 直接結束函式，不要把自己加入 game.players 列表！
+        
+        return # [重要] 結束函式！不執行下面的玩家加入邏輯 (不佔位)
+    # ===============================
     
     # --- 1. 搜尋是否有同名舊玩家 (斷線重連判定) ---
     target_old_sid = None
@@ -846,59 +850,64 @@ def on_go_night(data):
     
     auto_ready_passives(room)
 
-# [新增] 房主緊急控場功能
+# [新增] 上帝專用控場指令
 @socketio.on('admin_action')
 def on_admin_action(data):
     room = data['room']
     action = data['action']
     game = games.get(room)
     
-    # 權限檢查：只有房主能用
+    # 權限檢查：只有上帝 (admin_sid) 能執行！
     if not game or request.sid != game.admin_sid: return
 
-    # --- 功能 1: 查看是誰卡住遊戲 ---
+    # 1. 查狀態 (順便刷新身分列表)
     if action == 'check_status':
         # 找出還沒 ready 的活人
-        pending_names = []
-        for sid, p in game.players.items():
-            if p['alive'] and sid not in game.ready_players:
-                pending_names.append(p['name'])
+        pending = [p['name'] for sid, p in game.players.items() if p['alive'] and sid not in game.ready_players]
+        status_msg = f"階段: {game.phase} | 等待: {', '.join(pending) if pending else '無'}"
         
-        status_msg = f"當前階段: {game.phase}\n等待中: {', '.join(pending_names) if pending_names else '無'}"
-        emit('action_result', {'msg': status_msg}, room=request.sid)
+        # 重新整理身分列表回傳
+        player_info = []
+        for p in game.players.values():
+            status = "❤️" if p['alive'] else "💀"
+            player_info.append(f"{p['number']}號 {p['name']} ({p['role']}) - {status}")
 
-    # --- 功能 2: 強制結束夜晚 (直接天亮) ---
+        emit('admin_update_ui', {'msg': status_msg, 'player_info': player_info}, room=request.sid)
+
+    # 2. 強制天亮 (跳過結算)
     elif action == 'force_day':
-        # 結算夜晚 (不管有沒有人沒動，直接結算)
-        dead_names = game.calculate_night_result()
+        dead_names = game.calculate_night_result() # 結算昨晚
         game.phase = 'day_speak'
-        game.night_actions = { # 重置夜晚
-            'wolf_votes': {}, 'seer_has_checked': False, 
-            'witch_action': {'save': False, 'poison': None}, 
-            'guard_protect': None, 'witch_notified': False
-        }
         game.ready_players = set()
-        
         emit('phase_change', {'phase': 'day_speak', 'dead': dead_names}, room=room)
         emit('update_players', {'players': game.get_player_list()}, room=room)
-        emit('action_result', {'msg': '☀️ 房主強制天亮！'}, room=room)
+        emit('action_result', {'msg': '☀️ 上帝強制天亮！'}, room=room)
 
-    # --- 功能 3: 強制結束白天 (直接入夜) ---
+    # 3. 強制入夜 (跳過投票)
     elif action == 'force_night':
         game.phase = 'night'
         game.day_votes = {}
         game.is_pk_round = False
         game.pk_targets = []
-        game.night_actions = { # 重置夜晚
+        # 重置夜晚狀態
+        game.night_actions = {
             'wolf_votes': {}, 'seer_has_checked': False, 
             'witch_action': {'save': False, 'poison': None}, 
             'guard_protect': None, 'witch_notified': False
         }
         game.ready_players = set()
-        
         emit('phase_change', {'phase': 'night', 'potions': game.witch_potions}, room=room)
         emit('update_players', {'players': game.get_player_list()}, room=room)
-        emit('action_result', {'msg': '🌙 房主強制入夜！'}, room=room)
+        emit('action_result', {'msg': '🌙 上帝強制入夜！'}, room=room)
+
+    # 4. 強制重置
+    elif action == 'reset_game':
+        game.phase = 'setup'
+        game.ready_players = set()
+        game.players = {} # 清空玩家
+        game.host_sid = None
+        emit('game_reset', {'msg': '上帝重置了宇宙！'}, room=room)
+
 
 @socketio.on('disconnect')
 def on_disconnect():
