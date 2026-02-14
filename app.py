@@ -692,6 +692,20 @@ def on_day_vote(data):
         top_targets = [t for t, c in valid_counts.items() if c == max_vote_num]
         
         if len(top_targets) > 1:
+            
+            # [新增] 死結檢查：如果「所有活人」都在 PK 台上 -> 無人能投票 -> 直接流局
+            # 這種情況通常發生在三人局互投，或是所有活著的人都剛好平票
+            if len(top_targets) == alive_count:
+                msg = f"全員平票 ({', '.join(top_targets)})，無人能投票，本局無人出局！"
+                emit('vote_result', {'victim': msg}, room=room)
+                emit('update_players', {'players': game.get_player_list()}, room=room)
+                emit('vote_result_final', {}, room=room) # 觸發進入夜晚按鈕
+                
+                # 重置狀態
+                game.is_pk_round = False
+                game.pk_targets = []
+                return
+
             if game.is_pk_round:
                 msg = f"PK 局再次平票 ({', '.join(top_targets)})，無人出局！"
                 emit('vote_result', {'victim': msg}, room=room)
