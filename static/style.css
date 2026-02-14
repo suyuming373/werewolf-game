@@ -24,3 +24,11 @@
     white-space: nowrap;
     transition: opacity 0.3s;
 }
+
+.seer-msg {
+    color: #e040fb; /* 紫色 */
+    font-weight: bold;
+    background: rgba(224, 64, 251, 0.1); /* 淡淡的紫色背景 */
+    padding: 2px 5px;
+    border-radius: 4px;
+}

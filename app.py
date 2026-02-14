@@ -474,7 +474,7 @@ def on_action(data):
         # 通知其他狼隊友
         wolf_sids = [s for s, p in game.players.items() if p['role'] in ['狼人', '狼王']]
         for ws in wolf_sids:
-            emit('wolf_notification', {'msg': f'{player["name"]} ({player["role"]}) 改投給了 {target}'}, room=ws)
+            emit('wolf_notification', {'msg': f'{player["name"]} ({player["role"]}) 投給了 {target}'}, room=ws)
         
         # 檢查是否達成共識
         alive_wolf_sids = [s for s, p in game.players.items() if p['role'] in ['狼人', '狼王'] and p['alive']]
@@ -517,9 +517,11 @@ def on_action(data):
         game.ready_players.add(request.sid) # 預言家行動完自動準備
         check_and_process_night_end(room)
 
+    # ... (前面程式碼)
+
     # --- 🧪 女巫毒藥 ---
     elif action_type == 'witch_poison' and player['role'] == '女巫':
-        # [新增] 互斥檢查：如果今晚已經用過解藥，就不能用毒藥
+        # (互斥檢查：如果今晚已經用過解藥，就不能用毒藥)
         if game.night_actions['witch_action']['save']:
              emit('action_result', {'msg': '❌ 一晚只能使用一瓶藥！'}, room=request.sid)
              return
@@ -527,13 +529,18 @@ def on_action(data):
         if game.witch_potions['poison']:
             game.night_actions['witch_action']['poison'] = target
             game.witch_potions['poison'] = False
-            emit('action_result', {'msg': f'☠️ 已對 {target} 使用毒藥'}, room=request.sid)
+            
+            # [修改] 用完毒藥 -> 強制結束回合
+            emit('action_result', {'msg': f'☠️ 已對 {target} 下毒 (回合結束)'}, room=request.sid)
+            game.ready_players.add(request.sid) # 標記為已準備
+            check_and_process_night_end(room)   # 嘗試結算夜晚
+            
         else:
             emit('action_result', {'msg': '❌ 毒藥已經用完了'}, room=request.sid)
 
     # --- 🧪 女巫解藥 ---
     elif action_type == 'witch_save' and player['role'] == '女巫':
-        # [新增] 互斥檢查：如果今晚已經用過毒藥，就不能用解藥
+        # (互斥檢查：如果今晚已經用過毒藥，就不能用解藥)
         if game.night_actions['witch_action']['poison']:
              emit('action_result', {'msg': '❌ 一晚只能使用一瓶藥！'}, room=request.sid)
              return
@@ -541,10 +548,15 @@ def on_action(data):
         if game.witch_potions['heal']:
             game.night_actions['witch_action']['save'] = True
             game.witch_potions['heal'] = False
-            emit('action_result', {'msg': '🧪 已使用解藥 (今晚將是平安夜)'}, room=request.sid)
+            
+            # [修改] 用完解藥 -> 強制結束回合
+            emit('action_result', {'msg': '🧪 已使用解藥 (回合結束)'}, room=request.sid)
+            game.ready_players.add(request.sid) # 標記為已準備
+            check_and_process_night_end(room)   # 嘗試結算夜晚
+
         else:
             emit('action_result', {'msg': '❌ 解藥已經用完了'}, room=request.sid)
-            
+
     # --- 🛡️ 守衛行動 ---
     elif action_type == 'guard_protect' and player['role'] == '守衛':
         # [新增] 檢查是否連續守衛同一人

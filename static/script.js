@@ -167,7 +167,8 @@ function usePotion(type) {
                 poisonBtn.style.background = "#555";
             }
             
-            showToast("已送出解藥指令");
+            showToast("已使用解藥，回合結束");
+            lockWitchUI(); // [關鍵] 立刻鎖定介面
         });
 
     } else if (type === 'poison') {
@@ -192,13 +193,25 @@ function usePotion(type) {
 
 // 女巫行動後鎖定介面 (防止重複操作)
 function lockWitchUI() {
-    selectedAction = null;
+    // 鎖定所有按鈕
+    document.getElementById('btn-save').disabled = true;
+    document.getElementById('btn-poison').disabled = true;
     
-    // 恢復所有頭像鎖定狀態 (如果是晚上)
+    // 鎖定結束回合按鈕 (如果有的話)
+    const endBtn = document.getElementById('btn-end-turn');
+    if (endBtn) {
+        endBtn.disabled = true;
+        endBtn.innerText = "已行動 / 等待天亮...";
+    }
+
+    // 恢復頭像狀態
     document.querySelectorAll('.player-btn').forEach(btn => {
-        // 這裡不直接 disable，因為可能還需要點擊查看資訊，但恢復預設樣式
-        btn.style.border = "none"; 
+        btn.style.border = "none";
+        btn.style.opacity = "0.5"; // 變暗表示不能點了
+        btn.disabled = true;
     });
+    
+    selectedAction = null;
 }
 
 // [新增] 守衛空守
@@ -604,8 +617,14 @@ socket.on('force_confirm', (data) => {
     if (endBtn) endBtn.disabled = true;
 });
 
+// [修改] 預言家查驗結果
 socket.on('seer_result', (data) => { 
+    // 1. 原本的彈窗 (保留，作為第一時間的提示)
     showConfirm(`🔮 查驗結果：\n\n${data.target} 是 【${data.identity}】`);
+
+    // 2. [新增] 同步寫入文字紀錄區 (防止忘記)
+    // 這裡我們加個 emoji 讓它顯眼一點
+    addLog(`🔮 [查驗] ${data.target} 的身分是：${data.identity}`, "seer-msg");
 });
 
 socket.on('action_result', (data) => { addLog(`[系統] ${data.msg}`); });
@@ -683,14 +702,14 @@ function handlePlayerClick(targetName) {
                     saveBtn.innerText = "無法使用 (限一瓶)";
                     saveBtn.style.background = "#555";
                 }
-                
-                // 恢復 UI
-                lockWitchUI(); 
+
+                showToast(`已毒殺 ${targetName}，回合結束`);
+                lockWitchUI(); // [關鍵] 立刻鎖定介面
             });
             return;
         }
         else if (myRole === '女巫') {
-             showToast("⚠️ 請先點擊上方的「解藥」或「毒藥」按鈕，再選擇頭像！");
+             showToast("⚠️ 請先點擊上方的「毒藥」按鈕，再選擇頭像！");
         }
         else if (myRole === '預言家') {
             socket.emit('night_action', {room: myRoom, type: 'seer_check', target: targetName});
