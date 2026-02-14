@@ -320,6 +320,18 @@ socket.on('game_reset', (data) => {
     });
 });
 
+// [新增] 離開房間 (個人退出)
+function leaveRoom() {
+    showConfirm("確定要離開房間嗎？\n(這會清除登入紀錄並回到首頁)", () => {
+        // 1. 清除瀏覽器記憶 (這樣重整後才不會自動登入)
+        localStorage.removeItem('ww_username');
+        localStorage.removeItem('ww_room');
+        
+        // 2. 重新整理網頁 -> 觸發 socket disconnect -> 回到登入頁
+        location.reload();
+    });
+}
+
 socket.on('public_vote_log', (data) => {
     addLog(`🗳️ ${data.voter} 投給了 ${data.target}`);
 });
@@ -415,7 +427,7 @@ socket.on('update_players', (data) => {
             ingameControls.classList.add('hidden');
         }
     }
-    
+
 });
 
 socket.on('game_over', (data) => {
