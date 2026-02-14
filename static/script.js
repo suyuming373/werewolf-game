@@ -404,6 +404,18 @@ socket.on('update_players', (data) => {
             }
         });
     }
+
+    // [新增] 遊戲中顯示房主控制區
+    const ingameControls = document.getElementById('ingame-host-controls');
+    if (ingameControls) {
+        // 如果我是房主，而且遊戲正在進行中 (不是 setup)，就顯示按鈕
+        if (amIHost && currentPhase !== 'setup') {
+            ingameControls.classList.remove('hidden');
+        } else {
+            ingameControls.classList.add('hidden');
+        }
+    }
+    
 });
 
 socket.on('game_over', (data) => {
