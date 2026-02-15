@@ -767,6 +767,8 @@ socket.on('wolf_notification', (data) => {
 socket.on('witch_vision', (data) => {
     if (!isAlive) return;
 
+    currentWolfTarget = data.victim;
+
     // 1. 先抓取元素
     const vName = document.getElementById('victim-name');
     const saveBtn = document.getElementById('btn-save');
