@@ -156,36 +156,70 @@ let selectedAction = null; // 記錄目前選了什麼藥水
 function usePotion(type) {
     if (!isAlive) return;
 
-    if (type === 'poison') {
-        // 1. 先彈出確認視窗，警告這是一條不歸路
-        showConfirm("☠️ 確定要使用毒藥嗎？\n\n【警告】按下確定後：\n1. 無法取消\n2. 無法使用解藥\n3. 必須選擇一名玩家毒殺", () => {
+    // A. 解藥邏輯
+    if (type === 'save') {
+        // 1. 檢查變數：狼人行動了嗎？
+        if (!currentWolfTarget) {
+            showToast("⚠️ 狼人還沒行動，無法使用解藥！");
+            return;
+        }
+
+        // 2. 顯示確認視窗
+        showConfirm(`🧪 確定要對 ${currentWolfTarget} 使用解藥嗎？`, () => {
+            socket.emit('night_action', {
+                room: myRoom, 
+                type: 'witch_save', 
+                target: currentWolfTarget 
+            });
             
-            // --- 按下確定後執行的代碼 ---
+            // 3. 鎖定介面
+            const saveBtn = document.getElementById('btn-save');
+            if (saveBtn) { 
+                saveBtn.disabled = true; 
+                saveBtn.innerText = "已使用解藥"; 
+            }
+            const poisonBtn = document.getElementById('btn-poison');
+            if (poisonBtn) { 
+                poisonBtn.disabled = true; 
+                poisonBtn.innerText = "無法使用"; 
+                poisonBtn.style.background = "#555";
+            }
+            
+            showToast("已使用解藥，回合結束");
+            lockWitchUI(); 
+        });
+
+    // B. 毒藥邏輯
+    } else if (type === 'poison') {
+        
+        // 1. 毒藥確認彈窗 (防止反悔)
+        showConfirm("☠️ 確定要使用毒藥嗎？\n\n【警告】按下確定後：\n1. 無法取消\n2. 無法使用解藥\n3. 必須選擇一名玩家毒殺", () => {
             
             selectedAction = 'poison'; 
             
-            // 2. [關鍵] 鎖定「結束回合」按鈕 -> 強迫只能選人
+            // 2. 鎖定「結束回合」按鈕 -> 強迫只能選人
             const endBtn = document.getElementById('btn-end-turn');
             if (endBtn) {
                 endBtn.disabled = true;
-                endBtn.innerText = "請選擇毒殺對象..."; // 提示文字變更
+                endBtn.innerText = "請選擇毒殺對象..."; 
                 endBtn.style.opacity = "0.5";
             }
 
-            // 3. 鎖定「解藥」按鈕 (互斥規則)
+            // 3. 鎖定「解藥」按鈕
             const saveBtn = document.getElementById('btn-save');
             if (saveBtn) {
                 saveBtn.disabled = true;
-                saveBtn.innerText = "無法使用(限一瓶)";
+                saveBtn.innerText = "無法使用";
                 saveBtn.style.background = "#555";
             }
 
-            // 4. 視覺回饋：毒藥按鈕變成選取狀態
+            // 4. 毒藥按鈕視覺回饋
             const pBtn = document.getElementById('btn-poison');
             if (pBtn) {
                 pBtn.innerText = "請點擊下方頭像...";
-                pBtn.style.border = "2px solid #ff4081"; // 加個邊框提示
-                pBtn.disabled = true; // 避免重複點擊
+                pBtn.style.border = "2px solid #ff4081"; 
+                pBtn.disabled = true; 
+                pBtn.style.opacity = "1";
             }
             
             // 5. 解鎖頭像供選擇
@@ -193,45 +227,11 @@ function usePotion(type) {
                 btn.disabled = false;
                 btn.style.cursor = "pointer";
                 btn.style.opacity = "1";
-                // 加一點動畫或邊框提示哪些可以點
-                btn.style.border = "2px solid #ff4081"; 
+                btn.style.border = "2px solid #ff4081"; // 紅框提示
             });
 
             showToast("☠️ 毒藥模式已啟動，請選擇一名玩家！");
         });
-        return; // 結束，不跑下面的檢查
-    }
-
-    if (type === 'save') {
-        // --- 解藥邏輯 ---
-        
-        if (!currentWolfTarget) {
-            showToast("⚠️ 狼人還沒行動，無法使用解藥！");
-            return;
-        }
-
-        showConfirm(`🧪 確定要對 ${victim} 使用解藥嗎？`, () => {
-            socket.emit('night_action', {room: myRoom, type: 'witch_save', target: victim});
-            
-            // [新增] 鎖定解藥按鈕
-            const saveBtn = document.getElementById('btn-save');
-            if (saveBtn) {
-                saveBtn.disabled = true;
-                saveBtn.innerText = "已使用解藥";
-            }
-            
-            // [新增] 也要鎖定毒藥按鈕 (一晚限一瓶)
-            const poisonBtn = document.getElementById('btn-poison');
-            if (poisonBtn) {
-                poisonBtn.disabled = true;
-                poisonBtn.innerText = "無法使用 (限一瓶)";
-                poisonBtn.style.background = "#555";
-            }
-            
-            showToast("已使用解藥，回合結束");
-            lockWitchUI(); // [關鍵] 立刻鎖定介面
-        });
-
     }
 }
 
@@ -618,24 +618,28 @@ socket.on('phase_change', (data) => {
                 }
             }
 
-            // 2. 重置毒藥按鈕
+            // 重置毒藥按鈕
             const poisonBtn = document.getElementById('btn-poison');
             if (poisonBtn) {
-                if (data.potions && !data.potions.poison) {
-                    poisonBtn.disabled = true;
-                    poisonBtn.innerText = "毒藥已用完";
-                    poisonBtn.style.border = "none";
-                    poisonBtn.style.background = "#555";
-                    poisonBtn.style.opacity = "0.5"; // 用完變暗
-                } else {
+                // 如果後端沒傳 potions 來，或者 potions.poison 是 true
+                // 就代表有藥！(預設為 true)
+                const hasPoison = (data.potions && data.potions.poison !== false);
+
+                if (hasPoison) {
+                    // [強制解鎖]
                     poisonBtn.disabled = false; 
                     poisonBtn.innerText = "使用毒藥";
-                    poisonBtn.style.border = "none";
                     poisonBtn.style.background = "#9c27b0"; 
-                    // [修正 5] 這裡也要把透明度改回 1
-                    poisonBtn.style.opacity = "1"; 
+                    poisonBtn.style.opacity = "1";     // 亮起來
+                    poisonBtn.style.cursor = "pointer";
+                    poisonBtn.style.border = "none";
+                } else {
+                    // 沒藥了
+                    poisonBtn.disabled = true;
+                    poisonBtn.innerText = "毒藥已用完";
+                    poisonBtn.style.background = "#555";
+                    poisonBtn.style.opacity = "0.5";
                 }
-            }
         }
 
         if (myRole === '守衛') {
@@ -743,23 +747,24 @@ socket.on('wolf_notification', (data) => {
 socket.on('witch_vision', (data) => {
     if (!isAlive) return;
     
-    console.log("女巫感應收到:", data);
+    console.log("女巫感應收到:", data); // Debug用
     
-    // 1. [關鍵] 把目標存入全域變數
+    // 1. [關鍵] 更新變數
     currentWolfTarget = data.victim; 
     
-    // 2. 更新 UI
-    document.getElementById('victim-name').innerText = currentWolfTarget;
+    // 2. 更新畫面文字
+    const vName = document.getElementById('victim-name');
+    if(vName) vName.innerText = currentWolfTarget;
     
-    // 3. 再次確保按鈕是可按的 (雙重保險)
-    const btn = document.getElementById('btn-save');
-    if (btn && btn.innerText !== "解藥已用完") {
-        
-        // 只有在「沒有」按下毒藥確認的情況下，才解鎖解藥
-        if (selectedAction !== 'poison') {
+    // 3. 確保按鈕狀態正確
+    // 如果沒有進入毒藥模式，就解鎖解藥按鈕
+    if (selectedAction !== 'poison') {
+        const btn = document.getElementById('btn-save');
+        // 檢查是不是已經用完了
+        if (btn && !btn.innerText.includes("已用完")) {
             btn.disabled = false;
-            btn.innerText = "使用解藥"; 
             btn.style.opacity = "1";
+            btn.style.cursor = "pointer";
         }
     }
     
