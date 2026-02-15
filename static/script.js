@@ -569,7 +569,7 @@ socket.on('game_info', (data) => {
         const saveBtn = document.getElementById('btn-save');
         if(saveBtn) saveBtn.disabled = true;
     }
-    addLog(`[系統] 遊戲開始！玩家 ${myName} (你) 的身分是 ${playerRole}`);
+    addLog(`[系統] 遊戲開始！玩家 ${myName} (你) 的身分是 ${myRole}`);
 });
 
 socket.on('guard_selection', (data) => {
