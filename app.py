@@ -520,8 +520,14 @@ def on_action(data):
     game = games[room]
     player = game.players.get(request.sid)
 
-    # 基本檢查：確保玩家存在、有身分、且活著
+   # 基本檢查：確保玩家存在、有身分、且活著
     if not player or not player['role'] or not player['alive']: return 
+
+    # [新增] 防重複操作檢查！
+    # 如果玩家已經在 ready_players (代表他已經按過結束，或已經用過技能)，就擋下來
+    if request.sid in game.ready_players:
+        emit('action_result', {'msg': '❌ 你已經結束回合，無法再進行操作！'}, room=request.sid)
+        return
 
     print(f"[{room}] 收到行動: {player['role']} {player['name']} -> {action_type} 目標: {target}")
 

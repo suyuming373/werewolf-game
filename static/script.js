@@ -54,22 +54,18 @@ function showConfirm(msg, callback) {
 }
 
 function endTurn() {
-    // 鎖定按鈕避免重複點擊
-    const btn = document.getElementById('btn-end-turn');
-    if (btn) {
-        btn.disabled = true;
-        btn.innerText = "已確認，等待天亮...";
-    }
-    
-    // 鎖定女巫的其他按鈕 (既然都要結束了，就不能再用藥)
-    const saveBtn = document.getElementById('btn-save');
-    const poisonBtn = document.getElementById('btn-poison');
-    if (saveBtn) saveBtn.disabled = true;
-    if (poisonBtn) poisonBtn.disabled = true;
+    // [新增] 多一個確認視窗，防止手滑按錯
+    showConfirm("確定要結束回合嗎？\n(這代表你今晚不使用任何藥水)", () => {
+        
+        // 1. 告訴後端我好了
+        socket.emit('confirm_turn', { room: myRoom });
 
-    // 發送確認訊號給後端
-    // 後端收到 confirm_turn 會把你加入 ready_players
-    socket.emit('confirm_turn', { room: myRoom });
+        // 2. [關鍵] 呼叫專用的鎖定函式
+        // 這會把藥水、結束按鈕、還有「頭像」全部鎖死
+        lockWitchUI(); 
+        
+        showToast("已確認，等待天亮...");
+    });
 }
 
 function closeModal() {
@@ -212,25 +208,40 @@ function usePotion(type) {
 
 // 女巫行動後鎖定介面 (防止重複操作)
 function lockWitchUI() {
-    // 鎖定所有按鈕
-    document.getElementById('btn-save').disabled = true;
-    document.getElementById('btn-poison').disabled = true;
-    
-    // 鎖定結束回合按鈕 (如果有的話)
+    // 1. 鎖定藥水按鈕
+    const saveBtn = document.getElementById('btn-save');
+    const poisonBtn = document.getElementById('btn-poison');
+    if (saveBtn) { 
+        saveBtn.disabled = true; 
+        saveBtn.innerText = "已結束"; // 視覺回饋
+        saveBtn.style.opacity = "0.5"; 
+    }
+    if (poisonBtn) { 
+        poisonBtn.disabled = true; 
+        poisonBtn.innerText = "已結束"; 
+        poisonBtn.style.opacity = "0.5"; 
+    }
+
+    // 2. 鎖定結束按鈕
     const endBtn = document.getElementById('btn-end-turn');
     if (endBtn) {
         endBtn.disabled = true;
         endBtn.innerText = "已行動 / 等待天亮...";
     }
 
-    // 恢復頭像狀態
+    // 3. [最關鍵] 鎖定所有玩家頭像！
+    // 這是為了防止你原本選了毒藥(頭像亮起)，結果按結束回合後，頭像還能點
     document.querySelectorAll('.player-btn').forEach(btn => {
-        btn.style.border = "none";
-        btn.style.opacity = "0.5"; // 變暗表示不能點了
         btn.disabled = true;
+        btn.style.opacity = "0.5";
+        btn.style.border = "none";
+        btn.style.cursor = "not-allowed";
     });
     
-    selectedAction = null;
+    // 4. 清除選擇狀態 (防止程式誤判你還在選毒藥)
+    if (typeof selectedAction !== 'undefined') {
+        selectedAction = null;
+    }
 }
 
 // [新增] 鎖定守衛介面
