@@ -56,17 +56,41 @@ function showConfirm(msg, callback) {
 }
 
 function endTurn() {
-    // [新增] 多一個確認視窗，防止手滑按錯
-    showConfirm("確定要結束回合嗎？\n(這代表你今晚不使用任何藥水)", () => {
-        
-        // 1. 告訴後端我好了
-        socket.emit('confirm_turn', { room: myRoom });
+    // 1. 顯示確認視窗 (防止誤按)
+    if (!confirm("確定要結束回合嗎？\n(這代表你今晚不再使用任何藥水)")) return;
 
-        // 2. [關鍵] 呼叫專用的鎖定函式
-        // 這會把藥水、結束按鈕、還有「頭像」全部鎖死
-        lockWitchUI(); 
-        
-        showToast("已確認，等待天亮...");
+    // 2. 告訴後端我好了
+    socket.emit('confirm_turn', { room: myRoom });
+
+    // 3. [新增] 立刻鎖定所有按鈕！
+    const endBtn = document.getElementById('btn-end-turn');
+    if (endBtn) {
+        endBtn.disabled = true;
+        endBtn.innerText = "已結束 / 等待天亮...";
+        endBtn.style.opacity = "0.5";
+    }
+
+    // 鎖定解藥
+    const saveBtn = document.getElementById('btn-save');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerText = "回合結束";
+        saveBtn.style.opacity = "0.5";
+    }
+
+    // 鎖定毒藥
+    const poisonBtn = document.getElementById('btn-poison');
+    if (poisonBtn) {
+        poisonBtn.disabled = true;
+        poisonBtn.innerText = "回合結束";
+        poisonBtn.style.opacity = "0.5";
+    }
+
+    // 鎖定所有頭像 (防止還能點人)
+    document.querySelectorAll('.player-btn').forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = "0.5";
+        btn.style.cursor = "not-allowed";
     });
 }
 
@@ -550,6 +574,11 @@ socket.on('guard_selection', (data) => {
 });
 
 socket.on('phase_change', (data) => {
+
+    // 🔪 抓鬼專用：直接印出後端傳了什麼
+    console.log("🔥 [偵錯] 收到階段:", data.phase);
+    console.log("🔥 [偵錯] 藥水資料:", data.potions);
+
     const lastPhase = currentPhase;
     currentPhase = data.phase;
     
