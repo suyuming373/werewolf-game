@@ -6,7 +6,7 @@ let isAlive = true;
 let currentPhase = "setup"; 
 let amIHost = false; 
 // [新增] 專門用來存狼人殺了誰 (如果是 null 代表還沒殺，或狼人還沒動)
-let currentWolfTarget = null;
+let currentWolfTarget = null; 
 
 // ================== 自製彈窗與提示工具 ==================
 
@@ -574,56 +574,66 @@ socket.on('phase_change', (data) => {
         title.innerText = "🌙 天黑請閉眼";
         title.style.color = "#9c27b0";
         addLog("=== 進入夜晚 ===");
-        // [新增] 天黑了，重置狼刀目標
-        currentWolfTarget = null;
         
+        // [修正 1] 重置狼刀目標 與 選擇狀態 (這行漏掉了)
+        currentWolfTarget = null;
+        selectedAction = null; 
+
         if (myRole === '女巫' && isAlive) {
             if(endBtn) {
                 endBtn.classList.remove('hidden');
                 endBtn.disabled = false;
                 endBtn.innerText = "結束我的回合";
+                // [修正 2] 結束按鈕也要恢復不透明
+                endBtn.style.opacity = "1"; 
             }
         }
         
-        document.querySelectorAll('.player-btn').forEach(b => b.disabled = false);
+        document.querySelectorAll('.player-btn').forEach(b => {
+            b.disabled = false;
+            // [修正 3] 確保頭像完全不透明且可點
+            b.style.opacity = "1"; 
+            b.style.border = "none";
+            b.style.cursor = "pointer";
+        });
 
         if (myRole === '女巫') {
             if (witchArea) witchArea.classList.remove('hidden');
             const vName = document.getElementById('victim-name');
             if(vName) vName.innerText = "等待狼人行動...";
             
-            // 1. 重置解藥按鈕 (這段原本就有)
+            // 1. 重置解藥按鈕
             const saveBtn = document.getElementById('btn-save');
             if (saveBtn) {
-                // 先假設可以按，除非...
-                saveBtn.disabled = false; 
                 if (data.potions && !data.potions.heal) {
                     saveBtn.disabled = true;
                     saveBtn.innerText = "解藥已用完";
+                    saveBtn.style.opacity = "0.5"; // 用完變暗
                 } else {
+                    saveBtn.disabled = false; 
                     saveBtn.innerText = "使用解藥";
-                    saveBtn.style.background = "#e040fb"; // 恢復顏色
+                    saveBtn.style.background = "#e040fb"; 
+                    // [修正 4] 這裡最重要！要把透明度改回 1
+                    saveBtn.style.opacity = "1"; 
                 }
             }
 
-            // 2. [新增] 重置毒藥按鈕 (這段是漏掉的！)
-            // 每一晚開始時，都要檢查毒藥還在不在，如果在就要「解鎖」
+            // 2. 重置毒藥按鈕
             const poisonBtn = document.getElementById('btn-poison');
             if (poisonBtn) {
-                // 先假設可以按
-                poisonBtn.disabled = false; 
-                
                 if (data.potions && !data.potions.poison) {
-                    // 真的用完了才鎖
                     poisonBtn.disabled = true;
                     poisonBtn.innerText = "毒藥已用完";
                     poisonBtn.style.border = "none";
                     poisonBtn.style.background = "#555";
+                    poisonBtn.style.opacity = "0.5"; // 用完變暗
                 } else {
-                    // 還沒用完 -> 恢復成可按狀態
+                    poisonBtn.disabled = false; 
                     poisonBtn.innerText = "使用毒藥";
                     poisonBtn.style.border = "none";
-                    poisonBtn.style.background = "#9c27b0"; // 恢復原本紫色
+                    poisonBtn.style.background = "#9c27b0"; 
+                    // [修正 5] 這裡也要把透明度改回 1
+                    poisonBtn.style.opacity = "1"; 
                 }
             }
         }
@@ -633,8 +643,9 @@ socket.on('phase_change', (data) => {
             const gTarget = document.getElementById('guard-target');
             if(gTarget) gTarget.innerText = "尚未選擇";
         }
-
-    } else if (data.phase === 'day_speak') {
+    }
+    
+    else if (data.phase === 'day_speak') {
         title.innerText = "☀️ 天亮了";
         title.style.color = "#ffeb3b";
         
@@ -732,17 +743,24 @@ socket.on('wolf_notification', (data) => {
 socket.on('witch_vision', (data) => {
     if (!isAlive) return;
     
-    // [新增] 把真正的受害者名字存起來！
+    console.log("女巫感應收到:", data);
+    
+    // 1. [關鍵] 把目標存入全域變數
     currentWolfTarget = data.victim; 
     
-    // 更新 UI (給人類看的)
+    // 2. 更新 UI
     document.getElementById('victim-name').innerText = currentWolfTarget;
     
+    // 3. 再次確保按鈕是可按的 (雙重保險)
     const btn = document.getElementById('btn-save');
     if (btn && btn.innerText !== "解藥已用完") {
-        btn.disabled = false;
-        btn.innerText = "使用解藥"; 
-        btn.style.background = "#e040fb"; 
+        
+        // 只有在「沒有」按下毒藥確認的情況下，才解鎖解藥
+        if (selectedAction !== 'poison') {
+            btn.disabled = false;
+            btn.innerText = "使用解藥"; 
+            btn.style.opacity = "1";
+        }
     }
     
     addLog(`[感應] 狼人目標是 ${data.victim}。`, "witch-vision");
