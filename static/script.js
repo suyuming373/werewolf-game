@@ -787,7 +787,33 @@ socket.on('seer_result', (data) => {
     addLog(`🔮 [查驗] ${data.target} 的身分是：${data.identity}`, "seer-msg");
 });
 
-socket.on('action_result', (data) => { addLog(`[系統] ${data.msg}`); });
+socket.on('action_result', (data) => {
+    // 1. 顯示訊息
+    if (data.msg) showToast(data.msg);
+    
+    // 2. [新增] 守衛專屬：如果操作失敗 (收到 ❌)，要解鎖按鈕讓守衛重選
+    // 檢查條件：我是守衛 + 現在是晚上 + 訊息包含 "❌" (代表失敗)
+    if (myRole === '守衛' && currentPhase === 'night' && data.msg.includes('❌')) {
+        
+        console.log("守衛操作失敗，解鎖按鈕...");
+        
+        // 重置文字
+        const gTarget = document.getElementById('guard-target');
+        if (gTarget) gTarget.innerText = "請重新選擇";
+
+        // 解鎖所有頭像
+        document.querySelectorAll('.player-btn').forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = "1";      // 恢復亮度
+            btn.style.cursor = "pointer";
+            btn.style.border = "none";    // 清除選取框
+        });
+        
+        // 確保結束按鈕隱藏 (因為還沒選好)
+        const endBtn = document.getElementById('btn-end-turn');
+        if (endBtn) endBtn.classList.add('hidden');
+    }
+});
 
 // ================== 玩家點擊邏輯 (核心) ==================
 
