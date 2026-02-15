@@ -5,7 +5,7 @@ import random
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'werewolf_secret_key'
 # [修改] 加入 ping_timeout 和 ping_interval
-# ping_timeout=60: 允許客戶端 60 秒不說話 (切窗緩衝時間)
+# ping_timeout=60: 允許客戶端 1200 秒不說話 (切窗緩衝時間)
 # ping_interval=25: 每 25 秒檢查一次心跳
 socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=1200, ping_interval=25)
 

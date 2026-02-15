@@ -57,57 +57,44 @@ function showConfirm(msg, callback) {
 }
 
 function endTurn() {
-    // 1. 顯示確認視窗 (防止誤按)
-    // 如果是第一次點擊
-    if (!isConfirming) {
-        showToast("再按一次「結束我的回合」以確認今晚不行動");
-        isConfirming = true;
+    // 1. 顯示大框確認視窗
+    showConfirm("🧪 確定要結束你的回合嗎？\n按下確定後將無法再使用任何藥水。", () => {
         
-        // 3 秒後沒按第二次就重置，防止玩家很久之後才按卻直接結束
-        setTimeout(() => {
-            isConfirming = false;
-        }, 3000);
-        return; // 結束函式，不執行後面的 socket.emit
-    }
+        // --- 點擊大框「確定」後才會執行的邏輯 ---
+        
+        // 2. 告訴後端我好了
+        socket.emit('confirm_turn', { room: myRoom });
 
-    // --- 這裡開始是玩家按了第二次後的邏輯 ---
-    isConfirming = false; // 重置狀態
+        // 2. [新增] 立刻鎖定所有按鈕！
+        const endBtn = document.getElementById('btn-end-turn');
+        if (endBtn) {
+            endBtn.disabled = true;
+            endBtn.innerText = "已結束 / 等待天亮...";
+            endBtn.style.opacity = "0.5";
+        }
 
-    // 1. 告訴後端
-    socket.emit('confirm_turn', { room: myRoom });
+        // 鎖定解藥
+        const saveBtn = document.getElementById('btn-save');
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerText = "回合結束";
+            saveBtn.style.opacity = "0.5";
+        }
 
-    // 2. 告訴後端我好了
-    socket.emit('confirm_turn', { room: myRoom });
+        // 鎖定毒藥
+        const poisonBtn = document.getElementById('btn-poison');
+        if (poisonBtn) {
+            poisonBtn.disabled = true;
+            poisonBtn.innerText = "回合結束";
+            poisonBtn.style.opacity = "0.5";
+        }
 
-    // 3. [新增] 立刻鎖定所有按鈕！
-    const endBtn = document.getElementById('btn-end-turn');
-    if (endBtn) {
-        endBtn.disabled = true;
-        endBtn.innerText = "已結束 / 等待天亮...";
-        endBtn.style.opacity = "0.5";
-    }
-
-    // 鎖定解藥
-    const saveBtn = document.getElementById('btn-save');
-    if (saveBtn) {
-        saveBtn.disabled = true;
-        saveBtn.innerText = "回合結束";
-        saveBtn.style.opacity = "0.5";
-    }
-
-    // 鎖定毒藥
-    const poisonBtn = document.getElementById('btn-poison');
-    if (poisonBtn) {
-        poisonBtn.disabled = true;
-        poisonBtn.innerText = "回合結束";
-        poisonBtn.style.opacity = "0.5";
-    }
-
-    // 鎖定所有頭像 (防止還能點人)
-    document.querySelectorAll('.player-btn').forEach(btn => {
-        btn.disabled = true;
-        btn.style.opacity = "0.5";
-        btn.style.cursor = "not-allowed";
+        // 鎖定所有頭像 (防止還能點人)
+        document.querySelectorAll('.player-btn').forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = "0.5";
+            btn.style.cursor = "not-allowed";
+        });
     });
 }
 
@@ -771,7 +758,10 @@ socket.on('vote_result', (data) => {
 });
 
 socket.on('wolf_notification', (data) => { 
-    if(myRole.includes('狼') && isAlive) addLog(`[狼隊] ${data.msg}`); 
+    const wolfTeam = ['狼人', '狼王'];
+    if (wolfTeam.includes(myRole) && isAlive) {
+        addLog(`[狼隊] ${data.msg}`);
+    }
 });
 
 socket.on('witch_vision', (data) => {
