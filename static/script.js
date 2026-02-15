@@ -575,10 +575,6 @@ socket.on('guard_selection', (data) => {
 
 socket.on('phase_change', (data) => {
 
-    // 🔪 抓鬼專用：直接印出後端傳了什麼
-    console.log("🔥 [偵錯] 收到階段:", data.phase);
-    console.log("🔥 [偵錯] 藥水資料:", data.potions);
-
     const lastPhase = currentPhase;
     currentPhase = data.phase;
     
@@ -774,29 +770,45 @@ socket.on('wolf_notification', (data) => {
 
 socket.on('witch_vision', (data) => {
     if (!isAlive) return;
-    
-    console.log("女巫感應收到:", data); // Debug用
-    
-    // 1. [關鍵] 更新變數
-    currentWolfTarget = data.victim; 
-    
-    // 2. 更新畫面文字
+
+    // 1. 先抓取元素
     const vName = document.getElementById('victim-name');
-    if(vName) vName.innerText = currentWolfTarget;
-    
-    // 3. 確保按鈕狀態正確
-    // 如果沒有進入毒藥模式，就解鎖解藥按鈕
-    if (selectedAction !== 'poison') {
-        const btn = document.getElementById('btn-save');
-        // 檢查是不是已經用完了
-        if (btn && !btn.innerText.includes("已用完")) {
-            btn.disabled = false;
-            btn.style.opacity = "1";
-            btn.style.cursor = "pointer";
+    const saveBtn = document.getElementById('btn-save');
+    const endBtn = document.getElementById('btn-end-turn');
+
+    // 2. 判斷還有沒有解藥 (依賴 phase_change 時設定的按鈕文字)
+    // 只要按鈕文字不是 "已用完"，代表女巫還有藥，就有資格看刀口
+    const hasAntidote = saveBtn && !saveBtn.innerText.includes("已用完");
+
+    // 3. [關鍵] 無論是否結束回合，先更新刀口資訊！
+    if (hasAntidote) {
+        if (vName) {
+            vName.innerText = data.victim; // 顯示受害者名字
+            vName.style.color = "#ff5252"; // 紅色高亮
+            vName.style.fontWeight = "bold";
+        }
+        addLog(`[感應] 狼人目標是 ${data.victim}。`, "witch-vision");
+    } else {
+        if (vName) {
+            vName.innerText = "無法得知 (解藥已用)";
+            vName.style.color = "#777";
         }
     }
-    
-    addLog(`[感應] 狼人目標是 ${data.victim}。`, "witch-vision");
+
+    // 4. [防護] 檢查是否已經結束回合
+    // 如果已經按過結束 (disabled)，這裡直接 return，不要去執行下面的「解鎖按鈕」
+    if (endBtn && endBtn.disabled) {
+        console.log("已結束回合，僅更新刀口資訊，不解鎖按鈕");
+        return; 
+    }
+
+    // 5. 只有在「還沒結束回合」且「有藥」且「沒選毒藥」的情況下，才解鎖按鈕供操作
+    if (hasAntidote && selectedAction !== 'poison') {
+        saveBtn.disabled = false;
+        saveBtn.innerText = "使用解藥";
+        saveBtn.style.opacity = "1";
+        saveBtn.style.cursor = "pointer";
+    }
 });
 
 socket.on('force_confirm', (data) => {
