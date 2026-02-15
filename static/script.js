@@ -662,6 +662,7 @@ socket.on('phase_change', (data) => {
         }
 
         if (myRole === '守衛') {
+            if (guardArea) guardArea.classList.remove('hidden');
             const gTarget = document.getElementById('guard-target');
             if (gTarget) gTarget.innerText = "尚未選擇";
             
