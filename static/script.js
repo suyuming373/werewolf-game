@@ -640,6 +640,7 @@ socket.on('phase_change', (data) => {
                     poisonBtn.style.background = "#555";
                     poisonBtn.style.opacity = "0.5";
                 }
+            }
         }
 
         if (myRole === '守衛') {
@@ -647,9 +648,7 @@ socket.on('phase_change', (data) => {
             const gTarget = document.getElementById('guard-target');
             if(gTarget) gTarget.innerText = "尚未選擇";
         }
-    }
-    
-    else if (data.phase === 'day_speak') {
+    } else if (data.phase === 'day_speak') {
         title.innerText = "☀️ 天亮了";
         title.style.color = "#ffeb3b";
         
