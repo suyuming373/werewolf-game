@@ -76,9 +76,6 @@ function endTurn() {
     // 1. 告訴後端
     socket.emit('confirm_turn', { room: myRoom });
 
-    // 2. 告訴後端我好了
-    socket.emit('confirm_turn', { room: myRoom });
-
     // 3. [新增] 立刻鎖定所有按鈕！
     const endBtn = document.getElementById('btn-end-turn');
     if (endBtn) {
@@ -403,6 +400,19 @@ socket.on('join_success', (data) => {
         if (hostSettings) hostSettings.classList.add('hidden');
         if (guestMsg) guestMsg.classList.remove('hidden');
     }
+});
+
+// 在 socket.on('join_success') 附近加入這段
+socket.on('join_error', (data) => {
+    // 隱藏載入中標題
+    document.getElementById('phase-title').innerText = "❌ 進入失敗";
+    // 彈窗顯示為什麼失敗
+    showToast(data.msg);
+    
+    // 延遲一下讓玩家可以重新輸入名字
+    setTimeout(() => {
+        document.getElementById('phase-title').innerText = "請輸入名字與房號";
+    }, 2000);
 });
 
 socket.on('wolf_teammates', (data) => {

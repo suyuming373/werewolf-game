@@ -344,11 +344,12 @@ def auto_ready_passives(room):
 def index():
     return render_template('index.html')
 
-forbidden_names = ['狼人', '狼', '女巫', '預言家', '獵人', '平民', 'system', '系統']
-
 @socketio.on('join_room')
 def on_join(data):
+
     name = data.get('name', '').strip()
+
+    forbidden_names = ['狼人', '狼', '女巫', '預言家', '獵人', '平民', 'system', '系統']
     if name in forbidden_names:
         emit('error', {'msg': f'❌ 名字不能包含職業名稱「{name}」！'})
         return
