@@ -152,6 +152,86 @@ class Game:
         self.ready_players.clear()
         
         return list(set(dead))
+    
+# [新增] 專門用來即時推播給上帝的函式
+def push_god_monitor(room):
+    game = games.get(room)
+    if not game or not game.admin_sid: return
+
+    # 1. 整理所有玩家的即時狀態
+    player_info = []
+    
+    # 按照號碼排序
+    sorted_players = sorted(game.players.values(), key=lambda x: x['number'])
+
+    for p in sorted_players:
+        sid = next((k for k, v in game.players.items() if v == p), None)
+        if not sid: continue
+
+        # 基本資訊
+        status_icon = "❤️" if p['alive'] else "💀"
+        role_text = p['role'] if p['role'] else "無"
+        basic_info = f"[{p['number']}] {p['name']} ({role_text}) {status_icon}"
+        
+        # --- 判斷即時動作狀態 ---
+        action_status = ""
+        
+        if not p['alive']:
+            action_status = "(已死亡)"
+        
+        elif game.phase == 'night':
+            # 檢查是否已準備 (代表動作完成)
+            is_ready = sid in game.ready_players
+            
+            if p['role'] in ['狼人', '狼王']:
+                target = game.night_actions['wolf_votes'].get(sid)
+                if target: action_status = f"🗡️ 投給 {target}"
+                else: action_status = "⏳ 思考中..."
+            
+            elif p['role'] == '預言家':
+                if game.night_actions['seer_has_checked']: action_status = "✅ 已查驗"
+                else: action_status = "⏳ 查驗中..."
+            
+            elif p['role'] == '女巫':
+                # 女巫比較特別，要看有沒有按結束
+                if is_ready: action_status = "✅ 回合結束"
+                else: action_status = "⏳ 猶豫中..."
+                
+                # 如果有用藥，顯示細節
+                save = game.night_actions['witch_action']['save']
+                poison = game.night_actions['witch_action']['poison']
+                if save: action_status += " (用解藥)"
+                if poison: action_status += f" (毒 {poison})"
+
+            elif p['role'] == '守衛':
+                target = game.night_actions['guard_protect']
+                if target: action_status = f"🛡️ 守 {target}"
+                elif is_ready: action_status = "🛡️ 空守"
+                else: action_status = "⏳ 選擇中..."
+            
+            elif p['role'] == '平民':
+                 action_status = "💤 睡覺中"
+
+        elif game.phase == 'day_vote':
+            vote_target = game.day_votes.get(sid)
+            if vote_target: action_status = f"🗳️ 投給 {vote_target}"
+            else: action_status = "⏳ 投票中..."
+            
+        else:
+            # 白天發言或其他階段
+            action_status = "等待中"
+
+        # 組合字串
+        player_info.append(f"{basic_info} | {action_status}")
+
+    # 2. 組合當前階段資訊
+    waiting_list = [p['name'] for s, p in game.players.items() if p['alive'] and s not in game.ready_players and p['role'] != '平民']
+    phase_msg = f"階段: {game.phase}"
+    if game.phase == 'night':
+        phase_msg += f" | 等待動作: {len(waiting_list)} 人"
+
+    # 3. 發送給上帝
+    emit('admin_update_ui', {'msg': phase_msg, 'player_info': player_info}, room=game.admin_sid)
 
 def process_shoot_queue(room):
     game = games[room]
@@ -661,6 +741,8 @@ def on_action(data):
         # [關鍵] 空守也要觸發結算
         game.ready_players.add(request.sid)
         check_and_process_night_end(room)
+    
+    push_god_monitor(room)
 
 @socketio.on('shoot_action')
 def on_shoot(data):
@@ -702,6 +784,8 @@ def on_shoot(data):
         
         # 5. 呼叫隊列處理 (看看還有沒有下一個)
         process_shoot_queue(room)
+        
+    push_god_monitor(data['room'])
 
 @socketio.on('confirm_turn')
 def on_confirm(data):
@@ -711,12 +795,14 @@ def on_confirm(data):
         game.ready_players.add(request.sid)
         emit('action_result', {'msg': '已確認，等待其他玩家...'}, room=request.sid)
     check_and_process_night_end(room)
+    push_god_monitor(data['room'])
 
 @socketio.on('start_voting')
 def on_start_vote(data):
     games[data['room']].phase = 'day_vote'
     games[data['room']].day_votes = {}
     emit('phase_change', {'phase': 'day_vote'}, room=data['room'])
+    push_god_monitor(data['room'])
 
 @socketio.on('day_vote')
 def on_day_vote(data):
@@ -842,6 +928,8 @@ def on_day_vote(data):
                 else:
                     emit('vote_result_final', {}, room=room)
 
+    push_god_monitor(data['room'])
+
 @socketio.on('go_to_night')
 def on_go_night(data):
     room = data['room']
@@ -870,6 +958,7 @@ def on_go_night(data):
     emit('update_players', {'players': game.get_player_list()}, room=room)
     
     auto_ready_passives(room)
+    push_god_monitor(data['room'])
 
 # [新增] 上帝專用控場指令
 @socketio.on('admin_action')
