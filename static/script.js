@@ -662,9 +662,16 @@ socket.on('phase_change', (data) => {
         }
 
         if (myRole === '守衛') {
-            if (guardArea) guardArea.classList.remove('hidden');
             const gTarget = document.getElementById('guard-target');
-            if(gTarget) gTarget.innerText = "尚未選擇";
+            if (gTarget) gTarget.innerText = "尚未選擇";
+            
+            // 🔥 2. 遍歷所有按鈕，把「空守」按鈕解鎖
+            const skipBtn = document.getElementById('btn-guard-skip');
+            if (skipBtn) {
+                skipBtn.disabled = false;
+                skipBtn.innerText = "🚫 本局空守";
+                skipBtn.style.opacity = "1";
+            }
         }
     } else if (data.phase === 'day_speak') {
         title.innerText = "☀️ 天亮了";
