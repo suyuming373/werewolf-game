@@ -544,6 +544,12 @@ socket.on('game_over', (data) => {
 socket.on('game_info', (data) => {
     myRole = data.role;
     isAlive = true; 
+
+    // 🔥 [新增] 隱藏遊戲標題與大警告框
+    const warningBox = document.querySelector('.header-warning-box');
+    if (warningBox) {
+        warningBox.classList.add('hidden');
+    }
     document.getElementById('lobby-view').classList.add('hidden');
     document.getElementById('game-view').classList.remove('hidden');
     document.getElementById('my-role-info').innerText = `[${data.number}號] 身分：${myRole}`;
