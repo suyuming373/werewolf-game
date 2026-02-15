@@ -1056,6 +1056,8 @@ def on_admin_action(data):
             
         else:
             emit('action_result', {'msg': f'❌ 找不到玩家：{target_name}'}, room=request.sid)
+            
+    push_god_monitor(room)
 
 
 @socketio.on('disconnect')
