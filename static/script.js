@@ -643,7 +643,7 @@ socket.on('phase_change', (data) => {
                     // [強制解鎖]
                     poisonBtn.disabled = false; 
                     poisonBtn.innerText = "使用毒藥";
-                    poisonBtn.style.background = "#9c27b0"; 
+                    poisonBtn.style.background = "#e040fb"; 
                     poisonBtn.style.opacity = "1";     // 亮起來
                     poisonBtn.style.cursor = "pointer";
                     poisonBtn.style.border = "none";
