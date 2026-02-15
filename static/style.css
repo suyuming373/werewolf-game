@@ -32,3 +32,33 @@
     padding: 2px 5px;
     border-radius: 4px;
 }
+
+/* 標題與警示的大框框 */
+.header-warning-box {
+    border: 4px solid #f44336; /* 鮮紅色粗框 */
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    background-color: rgba(244, 67, 54, 0.1); /* 淡淡的紅背景 */
+    text-align: center;
+    animation: pulse-border 2s infinite; /* 讓框框有閃爍感 */
+}
+
+/* 警示文字樣式 */
+.warning-text {
+    color: #ff5252;
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-top: 10px;
+    padding: 5px;
+    background: #000;
+    display: inline-block;
+    border-radius: 5px;
+}
+
+/* 框框閃爍動畫 */
+@keyframes pulse-border {
+    0% { border-color: #f44336; box-shadow: 0 0 5px #f44336; }
+    50% { border-color: #ff9800; box-shadow: 0 0 20px #ff9800; }
+    100% { border-color: #f44336; box-shadow: 0 0 5px #f44336; }
+}
