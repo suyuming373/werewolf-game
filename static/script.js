@@ -7,6 +7,7 @@ let currentPhase = "setup";
 let amIHost = false; 
 // [新增] 專門用來存狼人殺了誰 (如果是 null 代表還沒殺，或狼人還沒動)
 let currentWolfTarget = null; 
+let isConfirming = false;
 
 // ================== 自製彈窗與提示工具 ==================
 
@@ -57,7 +58,23 @@ function showConfirm(msg, callback) {
 
 function endTurn() {
     // 1. 顯示確認視窗 (防止誤按)
-    if (!confirm("確定要結束回合嗎？\n(這代表你今晚不再使用任何藥水)")) return;
+    // 如果是第一次點擊
+    if (!isConfirming) {
+        showToast("再按一次「結束我的回合」以確認今晚不行動");
+        isConfirming = true;
+        
+        // 3 秒後沒按第二次就重置，防止玩家很久之後才按卻直接結束
+        setTimeout(() => {
+            isConfirming = false;
+        }, 3000);
+        return; // 結束函式，不執行後面的 socket.emit
+    }
+
+    // --- 這裡開始是玩家按了第二次後的邏輯 ---
+    isConfirming = false; // 重置狀態
+
+    // 1. 告訴後端
+    socket.emit('confirm_turn', { room: myRoom });
 
     // 2. 告訴後端我好了
     socket.emit('confirm_turn', { room: myRoom });
