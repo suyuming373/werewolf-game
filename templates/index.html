@@ -50,6 +50,7 @@
                             <li>若女巫此夜不使用藥水，請點擊"結束我的回合"。</li>
                             <li>守衛點擊玩家頭像(空守)，即可守衛選擇對象。</li>
                             <li>預言家點擊玩家頭像，即可查驗選擇對象身分(狼人方僅顯示對方為"狼人"不會顯示為狼王)。</li>
+                            <li>獵人及狼王在死亡後會進入技能使用時間(被女巫毒死將不會觸發)，點擊玩家頭像即可帶走選擇對象。</li>
                             <li>狼人方可投票決定被殺對象(未鎖定前可持續更換選擇對象)，全部狼隊成員選擇同一對象時鎖定。
                                 ※注意：若你為場上唯一狼，將沒有更換對象的權力，請做好決定再下手。</li>
                         </ul>
@@ -84,7 +85,7 @@
             <div class="setting-item">🧪 女巫：<input type="number" id="role-witch" value="1" min="0"></div>
             <div class="setting-item">🛡️ 守衛：<input type="number" id="role-guard" value="0" min="0"></div>
             <div class="setting-item">🔫 獵人：<input type="number" id="role-hunter" value="0" min="0"></div>
-            <div class="setting-item">村民：<input type="number" id="role-villager" value="3" min="0"></div>
+            <div class="setting-item">平民：<input type="number" id="role-villager" value="3" min="0"></div>
             <div style="margin-top: 15px; display: flex; gap: 10px;">
                 <button onclick="startGame()" style="flex: 2; background: #4caf50;">開始遊戲</button>
                 <button onclick="resetGame()" style="flex: 1; background: #f44336;">🔄 重置</button>
@@ -110,6 +111,7 @@
                             <li>若女巫此夜不使用藥水，請點擊"結束我的回合"。</li>
                             <li>守衛點擊玩家頭像(空守)，即可守衛選擇對象。</li>
                             <li>預言家點擊玩家頭像，即可查驗選擇對象身分(狼人方僅顯示對方為"狼人"不會顯示為狼王)。</li>
+                            <li>獵人及狼王在死亡後會進入技能使用時間(被女巫毒死將不會觸發)，點擊玩家頭像即可帶走選擇對象。</li>
                             <li>狼人方可投票決定被殺對象(未鎖定前可持續更換選擇對象)，全部狼隊成員選擇同一對象時鎖定。
                                 ※注意：若你為場上唯一狼，將沒有更換對象的權力，請做好決定再下手。</li>
                         </ul>

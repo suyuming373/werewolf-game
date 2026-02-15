@@ -569,7 +569,7 @@ socket.on('game_info', (data) => {
         const saveBtn = document.getElementById('btn-save');
         if(saveBtn) saveBtn.disabled = true;
     }
-    addLog(`遊戲開始！你是 ${myRole}`);
+    addLog(`[系統] 遊戲開始！玩家 ${myName} (你) 的身分是 ${playerRole}`);
 });
 
 socket.on('guard_selection', (data) => {
@@ -799,13 +799,6 @@ socket.on('witch_vision', (data) => {
             vName.innerText = "無法得知 (解藥已用)";
             vName.style.color = "#777";
         }
-    }
-
-    // 4. [防護] 檢查是否已經結束回合
-    // 如果已經按過結束 (disabled)，這裡直接 return，不要去執行下面的「解鎖按鈕」
-    if (endBtn && endBtn.disabled) {
-        console.log("已結束回合，僅更新刀口資訊，不解鎖按鈕");
-        return; 
     }
 
     // 5. 只有在「還沒結束回合」且「有藥」且「沒選毒藥」的情況下，才解鎖按鈕供操作
