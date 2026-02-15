@@ -76,6 +76,9 @@ function endTurn() {
     // 1. 告訴後端
     socket.emit('confirm_turn', { room: myRoom });
 
+    // 2. 告訴後端我好了
+    socket.emit('confirm_turn', { room: myRoom });
+
     // 3. [新增] 立刻鎖定所有按鈕！
     const endBtn = document.getElementById('btn-end-turn');
     if (endBtn) {
@@ -402,19 +405,6 @@ socket.on('join_success', (data) => {
     }
 });
 
-// 在 socket.on('join_success') 附近加入這段
-socket.on('join_error', (data) => {
-    // 隱藏載入中標題
-    document.getElementById('phase-title').innerText = "❌ 進入失敗";
-    // 彈窗顯示為什麼失敗
-    showToast(data.msg);
-    
-    // 延遲一下讓玩家可以重新輸入名字
-    setTimeout(() => {
-        document.getElementById('phase-title').innerText = "請輸入名字與房號";
-    }, 2000);
-});
-
 socket.on('wolf_teammates', (data) => {
     let msg = "🐺 你的狼隊友：\n";
     if (data.teammates.length === 0) {
@@ -579,7 +569,7 @@ socket.on('game_info', (data) => {
         const saveBtn = document.getElementById('btn-save');
         if(saveBtn) saveBtn.disabled = true;
     }
-    addLog(`[系統] 遊戲開始！玩家 ${myName} (你) 的身分是 ${myRole}`);
+    addLog(`遊戲開始！你是 ${myRole}`);
 });
 
 socket.on('guard_selection', (data) => {
@@ -809,6 +799,13 @@ socket.on('witch_vision', (data) => {
             vName.innerText = "無法得知 (解藥已用)";
             vName.style.color = "#777";
         }
+    }
+
+    // 4. [防護] 檢查是否已經結束回合
+    // 如果已經按過結束 (disabled)，這裡直接 return，不要去執行下面的「解鎖按鈕」
+    if (endBtn && endBtn.disabled) {
+        console.log("已結束回合，僅更新刀口資訊，不解鎖按鈕");
+        return; 
     }
 
     // 5. 只有在「還沒結束回合」且「有藥」且「沒選毒藥」的情況下，才解鎖按鈕供操作
