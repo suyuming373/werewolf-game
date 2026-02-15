@@ -223,6 +223,16 @@
             <button onclick="adminAction('force_day')" style="background: #ff9800; padding: 15px; font-size: 16px;">☀️ 強制天亮 (跳過)</button>
             <button onclick="adminAction('force_night')" style="background: #795548; padding: 15px; font-size: 16px;">🌙 強制入夜 (跳過)</button>
         </div>
+
+        <div style="margin-top: 15px; border-top: 1px dashed #666; padding-top: 10px;">
+            <h4 style="color: #ff5252; margin: 0 0 5px 0;">💀 死神筆記本 (強制處決)</h4>
+            <div style="display: flex; gap: 5px;">
+                <input type="text" id="god-kill-target" placeholder="輸入玩家名字" style="background: #333; color: white; border: 1px solid #555; padding: 5px;">
+                <button onclick="godKill()" style="background: #d32f2f; color: white; width: auto;">處決</button>
+            </div>
+            <p style="font-size: 12px; color: #aaa; margin-top: 5px;">(若處決獵人/狼王，會觸發開槍技能)</p>
+        </div>
+
         <p id="god-msg-display" style="color: #00e676; margin-top: 10px; font-weight: bold; min-height: 20px;"></p>
     </div>
 

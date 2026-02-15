@@ -937,11 +937,23 @@ socket.on('admin_update_ui', (data) => {
 });
 
 // 3. 發送指令
-function adminAction(action) {
-    if (action.includes('force') || action === 'reset_game') {
-        if (!confirm("⚠️ 確定要強制執行嗎？")) return;
+// [修改] 讓 adminAction 支援 target 參數
+function adminAction(action, target = null) {
+    if (action.includes('force') || action === 'reset_game' || action === 'kill_player') {
+        if (!confirm("⚠️ 確定要執行此強制操作嗎？")) return;
     }
-    socket.emit('admin_action', { room: myRoom, action: action });
+    // 傳送指令給後端
+    socket.emit('admin_action', { room: myRoom, action: action, target: target });
+}
+
+// [新增] 讀取輸入框並執行處決
+function godKill() {
+    const targetName = document.getElementById('god-kill-target').value;
+    if (!targetName) {
+        alert("請輸入名字！");
+        return;
+    }
+    adminAction('kill_player', targetName);
 }
 
 // 4. 更新列表 UI (上色與防呆)

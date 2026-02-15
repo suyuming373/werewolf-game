@@ -923,6 +923,39 @@ def on_admin_action(data):
         game.host_sid = None
         emit('game_reset', {'msg': '上帝重置了宇宙！'}, room=room)
 
+    # 5. 強制處決某人
+    elif action == 'kill_player':
+        target_name = data.get('target')
+        
+        # 找人
+        target_sid = None
+        for sid, p in game.players.items():
+            if p['name'] == target_name:
+                target_sid = sid
+                break
+        
+        if target_sid:
+            # 1. 直接弄死
+            game.players[target_sid]['alive'] = False
+            role = game.players[target_sid]['role']
+            
+            msg = f"💀 上帝強制處決了 {target_name} ({role})"
+            emit('action_result', {'msg': msg}, room=room)
+            
+            # 2. 檢查是否觸發技能 (獵人/狼王)
+            if role in ['獵人', '狼王']:
+                game.shoot_queue.append(target_sid)
+                process_shoot_queue(room) # 呼叫開槍流程
+            
+            # 3. 更新所有人畫面
+            emit('update_players', {'players': game.get_player_list()}, room=room)
+            
+            # 4. 刷新上帝面板
+            on_admin_action({'room': room, 'action': 'check_status'}) # 自我呼叫刷新 UI
+            
+        else:
+            emit('action_result', {'msg': f'❌ 找不到玩家：{target_name}'}, room=request.sid)
+
 
 @socketio.on('disconnect')
 def on_disconnect():
