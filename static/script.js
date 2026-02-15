@@ -159,17 +159,6 @@ function startGame() {
     socket.emit('start_game', {room: myRoom, settings: settings});
 }
 
-function confirmTurn() { 
-    if (!isAlive) return;
-    socket.emit('confirm_turn', {room: myRoom}); 
-    
-    const btn = document.getElementById('btn-end-turn');
-    if (btn) {
-        btn.disabled = true; 
-        btn.innerText = "已確認 / 等待其他玩家..."; 
-    }
-}
-
 function startVoting() { socket.emit('start_voting', {room: myRoom}); }
 function goToNight() { socket.emit('go_to_night', {room: myRoom}); }
 
