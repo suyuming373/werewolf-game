@@ -5,6 +5,8 @@ let myRole = "";
 let isAlive = true; 
 let currentPhase = "setup"; 
 let amIHost = false; 
+// [新增] 專門用來存狼人殺了誰 (如果是 null 代表還沒殺，或狼人還沒動)
+let currentWolfTarget = null;
 
 // ================== 自製彈窗與提示工具 ==================
 
@@ -154,13 +156,28 @@ let selectedAction = null; // 記錄目前選了什麼藥水
 function usePotion(type) {
     if (!isAlive) return;
 
+    if (type === 'poison') {
+        selectedAction = 'poison'; 
+        showToast("☠️ 請點擊下方一名「玩家頭像」進行下毒！");
+        
+        // UI 變化...
+        const pBtn = document.getElementById('btn-poison');
+        if (pBtn) {
+            pBtn.innerText = "請選擇目標...";
+            pBtn.style.border = "2px solid white";
+        }
+        document.querySelectorAll('.player-btn').forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = "1";
+        });
+        return; // 結束，不跑下面的檢查
+    }
+
     if (type === 'save') {
         // --- 解藥邏輯 ---
-        const victimElem = document.getElementById('victim-name');
-        const victim = victimElem ? victimElem.innerText : "";
         
-        if (!victim || victim === "(等待狼人行動...)" || victim === "未知") {
-            showToast("⚠️ 還不知道狼人殺了誰，無法使用解藥！");
+        if (!currentWolfTarget) {
+            showToast("⚠️ 狼人還沒行動，無法使用解藥！");
             return;
         }
 
@@ -186,23 +203,6 @@ function usePotion(type) {
             lockWitchUI(); // [關鍵] 立刻鎖定介面
         });
 
-    } else if (type === 'poison') {
-        // --- 毒藥邏輯 ---
-        selectedAction = 'poison'; 
-        
-        showToast("☠️ 請點擊下方一名「玩家頭像」進行下毒！");
-        
-        const pBtn = document.getElementById('btn-poison');
-        if (pBtn) {
-            pBtn.innerText = "請選擇目標...";
-            pBtn.style.border = "2px solid white";
-        }
-        
-        document.querySelectorAll('.player-btn').forEach(btn => {
-            btn.disabled = false;
-            btn.style.cursor = "pointer";
-            btn.style.opacity = "1";
-        });
     }
 }
 
@@ -545,6 +545,8 @@ socket.on('phase_change', (data) => {
         title.innerText = "🌙 天黑請閉眼";
         title.style.color = "#9c27b0";
         addLog("=== 進入夜晚 ===");
+        // [新增] 天黑了，重置狼刀目標
+        currentWolfTarget = null;
         
         if (myRole === '女巫' && isAlive) {
             if(endBtn) {
@@ -701,8 +703,11 @@ socket.on('wolf_notification', (data) => {
 socket.on('witch_vision', (data) => {
     if (!isAlive) return;
     
-    console.log("女巫感應收到:", data);
-    document.getElementById('victim-name').innerText = data.victim;
+    // [新增] 把真正的受害者名字存起來！
+    currentWolfTarget = data.victim; 
+    
+    // 更新 UI (給人類看的)
+    document.getElementById('victim-name').innerText = currentWolfTarget;
     
     const btn = document.getElementById('btn-save');
     if (btn && btn.innerText !== "解藥已用完") {

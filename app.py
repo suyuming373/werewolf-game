@@ -614,6 +614,12 @@ def on_action(data):
         if game.night_actions['witch_action']['poison']:
              emit('action_result', {'msg': '❌ 一晚只能使用一瓶藥！'}, room=request.sid)
              return
+        
+        # [新增] 檢查是否真的有人被殺 (防止對空氣用藥)
+        # 我們檢查 witch_notified 旗標，這代表狼人已經達成共識並通知女巫了
+        if not game.night_actions.get('witch_notified'):
+             emit('action_result', {'msg': '❌ 狼人尚未行動，無法使用解藥！'}, room=request.sid)
+             return
 
         if game.witch_potions['heal']:
             game.night_actions['witch_action']['save'] = True
