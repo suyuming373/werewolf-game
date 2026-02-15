@@ -157,18 +157,47 @@ function usePotion(type) {
     if (!isAlive) return;
 
     if (type === 'poison') {
-        selectedAction = 'poison'; 
-        showToast("☠️ 請點擊下方一名「玩家頭像」進行下毒！");
-        
-        // UI 變化...
-        const pBtn = document.getElementById('btn-poison');
-        if (pBtn) {
-            pBtn.innerText = "請選擇目標...";
-            pBtn.style.border = "2px solid white";
-        }
-        document.querySelectorAll('.player-btn').forEach(btn => {
-            btn.disabled = false;
-            btn.style.opacity = "1";
+        // 1. 先彈出確認視窗，警告這是一條不歸路
+        showConfirm("☠️ 確定要使用毒藥嗎？\n\n【警告】按下確定後：\n1. 無法取消\n2. 無法使用解藥\n3. 必須選擇一名玩家毒殺", () => {
+            
+            // --- 按下確定後執行的代碼 ---
+            
+            selectedAction = 'poison'; 
+            
+            // 2. [關鍵] 鎖定「結束回合」按鈕 -> 強迫只能選人
+            const endBtn = document.getElementById('btn-end-turn');
+            if (endBtn) {
+                endBtn.disabled = true;
+                endBtn.innerText = "請選擇毒殺對象..."; // 提示文字變更
+                endBtn.style.opacity = "0.5";
+            }
+
+            // 3. 鎖定「解藥」按鈕 (互斥規則)
+            const saveBtn = document.getElementById('btn-save');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerText = "無法使用(限一瓶)";
+                saveBtn.style.background = "#555";
+            }
+
+            // 4. 視覺回饋：毒藥按鈕變成選取狀態
+            const pBtn = document.getElementById('btn-poison');
+            if (pBtn) {
+                pBtn.innerText = "請點擊下方頭像...";
+                pBtn.style.border = "2px solid #ff4081"; // 加個邊框提示
+                pBtn.disabled = true; // 避免重複點擊
+            }
+            
+            // 5. 解鎖頭像供選擇
+            document.querySelectorAll('.player-btn').forEach(btn => {
+                btn.disabled = false;
+                btn.style.cursor = "pointer";
+                btn.style.opacity = "1";
+                // 加一點動畫或邊框提示哪些可以點
+                btn.style.border = "2px solid #ff4081"; 
+            });
+
+            showToast("☠️ 毒藥模式已啟動，請選擇一名玩家！");
         });
         return; // 結束，不跑下面的檢查
     }
