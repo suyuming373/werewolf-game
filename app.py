@@ -772,7 +772,7 @@ def handle_wolf_chat(data):
     print(f"✅ 找到玩家: {player['name']}, 角色: {player['role']}")
     
     # 嚴格檢查：必須完全符合你的角色字串
-    if player['role'] in ['狼人', '狼王'] and player['is_alive'] and data.get('msg'):
+    if player['role'] in ['狼人', '狼王'] and player['alive'] and data.get('msg'):
         emit('wolf_chat_received', {
             'user': player['name'],
             'msg': data.get('msg').strip()
