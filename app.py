@@ -750,14 +750,15 @@ def on_action(data):
 @socketio.on('wolf_chat')
 def handle_wolf_chat(data):
     room = data['room']
-    msg = data['msg']
+    msg = data.get('msg', '').strip()
     player = games[room].players.get(request.sid)
 
-    # 安全檢查：確保發送者真的是狼人且活著
-    if player and player['role'] in ['狼人', '狼王'] and player['is_alive']:
-        chat_msg = f"{player['username']}: {msg}"
-        # 僅對房內的所有人廣播，但前端會過濾只有狼人顯示
-        emit('wolf_notification', {'msg': chat_msg}, room=room)
+    if player and player['role'] in ['狼人', '狼王'] and player['is_alive'] and msg:
+        # 🔥 發送給專屬的聊天監聽器
+        emit('wolf_chat_received', {
+            'user': player['username'],
+            'msg': msg
+        }, room=room)
 
 @socketio.on('shoot_action')
 def on_shoot(data):

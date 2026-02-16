@@ -579,20 +579,6 @@ socket.on('game_info', (data) => {
     addLog(`遊戲開始！你是 ${myRole}`);
 });
 
-socket.on('wolf_notification', (data) => {
-    // 確保只有狼人陣營會收到並顯示這則訊息
-    if (['狼人', '狼王'].includes(myRole) && isAlive) {
-        addLog(`[狼隊] ${data.msg}`);
-    }
-});
-
-socket.on('guard_selection', (data) => {
-    const targetSpan = document.getElementById('guard-target');
-    if (targetSpan) {
-        targetSpan.innerText = data.target;
-    }
-});
-
 socket.on('phase_change', (data) => {
 
     const lastPhase = currentPhase;
@@ -800,9 +786,17 @@ socket.on('vote_result', (data) => {
     if(abstainBtn) abstainBtn.disabled = true;
 });
 
-socket.on('wolf_notification', (data) => { 
+// 1. 處理投票等系統自動發出的通知
+socket.on('wolf_notification', (data) => {
     if (['狼人', '狼王'].includes(myRole) && isAlive) {
-        addLog(`[狼隊頻道] ${data.msg}`);
+        addLog(`🐺 [狼隊] ${data.msg}`); 
+    }
+});
+
+// 2. 🔥 專門處理狼人打字聊天的訊息
+socket.on('wolf_chat_received', (data) => {
+    if (['狼人', '狼王'].includes(myRole) && isAlive) {
+        addLog(`💬 [狼隊頻道] ${data.user}: ${data.msg}`, "#ff5252"); 
     }
 });
 
@@ -851,13 +845,6 @@ socket.on('witch_vision', (data) => {
     }
 });
 
-socket.on('force_confirm', (data) => {
-    addLog(data.msg);
-    document.querySelectorAll('.player-btn').forEach(b => b.disabled = true);
-    const endBtn = document.getElementById('btn-end-turn');
-    if (endBtn) endBtn.disabled = true;
-});
-
 // [修改] 預言家查驗結果
 socket.on('seer_result', (data) => { 
     // 1. 原本的彈窗 (保留，作為第一時間的提示)
@@ -866,6 +853,13 @@ socket.on('seer_result', (data) => {
     // 2. [新增] 同步寫入文字紀錄區 (防止忘記)
     // 這裡我們加個 emoji 讓它顯眼一點
     addLog(`🔮 [查驗] ${data.target} 的身分是：${data.identity}`, "seer-msg");
+});
+
+socket.on('guard_selection', (data) => {
+    const targetSpan = document.getElementById('guard-target');
+    if (targetSpan) {
+        targetSpan.innerText = data.target;
+    }
 });
 
 socket.on('action_result', (data) => {
@@ -894,6 +888,13 @@ socket.on('action_result', (data) => {
         const endBtn = document.getElementById('btn-end-turn');
         if (endBtn) endBtn.classList.add('hidden');
     }
+});
+
+socket.on('force_confirm', (data) => {
+    addLog(data.msg);
+    document.querySelectorAll('.player-btn').forEach(b => b.disabled = true);
+    const endBtn = document.getElementById('btn-end-turn');
+    if (endBtn) endBtn.disabled = true;
 });
 
 // ================== 玩家點擊邏輯 (核心) ==================
