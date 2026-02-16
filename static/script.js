@@ -801,9 +801,8 @@ socket.on('vote_result', (data) => {
 });
 
 socket.on('wolf_notification', (data) => { 
-    const wolfTeam = ['狼人', '狼王'];
-    if (wolfTeam.includes(myRole) && isAlive) {
-        addLog(`[狼隊] ${data.msg}`);
+    if (['狼人', '狼王'].includes(myRole) && isAlive) {
+        addLog(`[狼隊頻道] ${data.msg}`);
     }
 });
 
