@@ -749,12 +749,24 @@ def on_action(data):
 
 @socketio.on('wolf_chat')
 def handle_wolf_chat(data):
-    room = data['room']
+    # 🔍 加上列印，在終端機看看有沒有收到訊息
+    print(f"收到狼隊訊息請求: {data}") 
+    
+    room = data.get('room') # 改用 .get 避免 Key 找不到時報錯
     msg = data.get('msg', '').strip()
+    
+    if not room or room not in games:
+        print("❌ 錯誤：找不到房間號")
+        return
+
     player = games[room].players.get(request.sid)
 
+    # 🔍 列印玩家身分看看，確認是不是 '狼人' 三個字完全對齊
+    if player:
+        print(f"發送者身分: {player['role']}, 存活狀態: {player['is_alive']}")
+
     if player and player['role'] in ['狼人', '狼王'] and player['is_alive'] and msg:
-        # 🔥 發送給專屬的聊天監聽器
+        print(f"✅ 驗證通過，準備發送訊息: {msg}")
         emit('wolf_chat_received', {
             'user': player['username'],
             'msg': msg

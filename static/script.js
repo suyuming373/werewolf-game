@@ -169,9 +169,15 @@ function goToNight() { socket.emit('go_to_night', {room: myRoom}); }
 function sendWolfChat() {
     const input = document.getElementById('wolf-chat-input');
     const msg = input.value.trim();
+    
+    // 🔍 打開瀏覽器 F12 看看有沒有印出這個
+    console.log("前端發送嘗試 - 房間:", myRoom, "訊息:", msg);
+
     if (msg && myRoom) {
         socket.emit('wolf_chat', { room: myRoom, msg: msg });
-        input.value = ''; // 清空輸入框
+        input.value = '';
+    } else {
+        console.error("❌ 發送失敗：缺少訊息內容或房間號 (myRoom)");
     }
 }
 
