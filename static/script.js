@@ -799,9 +799,9 @@ socket.on('wolf_notification', (data) => {
     }
 });
 
-// 2. 🔥 專門處理狼人打字聊天的訊息
 socket.on('wolf_chat_received', (data) => {
-    if (['狼人', '狼王'].includes(myRole) && isAlive) {
+    // 🔥 同樣道理：用 .includes('狼') 來判定
+    if (myRole && myRole.includes('狼') && isAlive) {
         addLog(`💬 [狼隊頻道] ${data.user}: ${data.msg}`, "#ff5252"); 
     }
 });
