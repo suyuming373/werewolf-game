@@ -170,14 +170,21 @@ function sendWolfChat() {
     const input = document.getElementById('wolf-chat-input');
     const msg = input.value.trim();
     
-    // 🔍 打開瀏覽器 F12 看看有沒有印出這個
-    console.log("前端發送嘗試 - 房間:", myRoom, "訊息:", msg);
+    // 如果 myRoom 消失了，嘗試從 localStorage 補救
+    if (!myRoom) {
+        myRoom = localStorage.getItem('ww_room');
+    }
+
+    console.log("嘗試發送 - 房間:", myRoom, "內容:", msg);
 
     if (msg && myRoom) {
-        socket.emit('wolf_chat', { room: myRoom, msg: msg });
+        socket.emit('wolf_chat', { 
+            room: String(myRoom), // 強制轉字串發送
+            msg: msg 
+        });
         input.value = '';
     } else {
-        console.error("❌ 發送失敗：缺少訊息內容或房間號 (myRoom)");
+        alert("發送失敗：找不到房間號，請重新整理頁面。");
     }
 }
 

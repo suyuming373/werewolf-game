@@ -749,24 +749,20 @@ def on_action(data):
 
 @socketio.on('wolf_chat')
 def handle_wolf_chat(data):
-    room = data.get('room')
-    msg = data.get('msg', '').strip()
+    # 這是最強制性的 Print，如果這裡都沒印，代表訊息沒進來
+    print("--- Wolf Chat Triggered ---")
+    print(f"Data received: {data}")
     
-    if not room or room not in games:
-        return
-
-    player = games[room].players.get(request.sid)
-
-    # 🔥 修改重點：改用 '狼' in player['role']，只要字串裡有「狼」字就給過
-    # 這樣管它是 "[4號] 狼人" 還是 "狼王" 通通都能發送
-    if player and '狼' in player.get('role', '') and player.get('is_alive') and msg:
-        display_msg = f"{player['username']}: {msg}"
-        
-        # 發送給狼隊專屬的通知訊號
-        emit('wolf_chat_received', {
-            'user': player['username'],
-            'msg': msg
-        }, room=room)
+    room = data.get('room')
+    msg = data.get('msg', '').strip() 
+    
+    if room in games:
+        player = games[room].players.get(request.sid)
+        if player:
+             print(f"Player: {player['username']}, Role: {player['role']}")
+             # 如果你堅持不放寬限制，請確保這裡的判斷與 player['role'] 存的字串完全一致
+             if player['role'] in ['狼人', '狼王'] and player['is_alive'] and msg:
+                 emit('wolf_chat_received', {'user': player['username'], 'msg': msg}, room=room)
 
 @socketio.on('shoot_action')
 def on_shoot(data):
