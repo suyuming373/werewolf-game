@@ -317,27 +317,50 @@ function lockWitchUI() {
     }
 }
 
-// [新增] 鎖定守衛介面
-function lockGuardUI() {
-    // 鎖定所有頭像
+// [修改] 鎖定守衛介面 (加入參數 actionType)
+// actionType: 'protect' (守人) 或 'skip' (空守)
+function lockGuardUI(actionType) {
+    // 1. 鎖定所有頭像
     document.querySelectorAll('.player-btn').forEach(btn => {
         btn.disabled = true;
         btn.style.opacity = "0.6";
         btn.style.border = "none";
+        btn.style.cursor = "not-allowed";
     });
 
-    // 鎖定空守按鈕 (如果有的話)
-    // 這裡我們假設空守按鈕的 onclick 是 skipGuard()，我們可以透過 querySelector 抓它
-    // 或者你可以給空守按鈕一個 id="btn-skip-guard" 會更準確，這裡先用通用的方式鎖
-    const buttons = document.getElementsByTagName('button');
-    for (let btn of buttons) {
-        if (btn.innerText.includes("空守")) {
-            btn.disabled = true;
-            btn.innerText = "已選擇空守";
+    // 2. 鎖定空守按鈕 (針對你的需求修改這裡)
+    const skipBtn = document.getElementById('btn-guard-skip');
+    
+    // 如果找不到 ID，嘗試用舊方法抓取 (相容性)
+    let targetBtn = skipBtn;
+    if (!targetBtn) {
+        const buttons = document.getElementsByTagName('button');
+        for (let btn of buttons) {
+            if (btn.innerText.includes("空守")) {
+                targetBtn = btn;
+                break;
+            }
         }
     }
 
-    // 鎖定結束回合按鈕
+    if (targetBtn) {
+        targetBtn.disabled = true;
+        
+        // 🔥 這裡就是你要改的地方
+        if (actionType === 'skip') {
+            targetBtn.innerText = "已選擇空守"; // 真的按了空守
+            targetBtn.style.background = "#555";
+        } else {
+            // 守了別人，這個按鈕就廢掉
+            targetBtn.innerText = "無法使用"; 
+            targetBtn.style.background = "#333"; 
+            targetBtn.style.color = "#777";
+            targetBtn.style.border = "none";
+        }
+        targetBtn.style.opacity = "0.5";
+    }
+
+    // 3. 鎖定結束回合按鈕
     const endBtn = document.getElementById('btn-end-turn');
     if (endBtn) {
         endBtn.disabled = true;
@@ -353,7 +376,7 @@ function skipGuard() {
         socket.emit('night_action', {room: myRoom, type: 'guard_skip'});
         
         // [新增] 鎖定介面
-        lockGuardUI();
+        lockGuardUI('skip');
         showToast("已選擇空守，回合結束");
     });
 }
@@ -1020,15 +1043,14 @@ function handlePlayerClick(targetName) {
             socket.emit('night_action', {room: myRoom, type: 'wolf_vote', target: targetName});
         }
         else if (myRole === '守衛') {
-            // [修改] 守衛點擊頭像 -> 彈出確認窗
             showConfirm(`🛡️ 確定要今晚守護 【${targetName}】 嗎？`, () => {
                 socket.emit('night_action', {room: myRoom, type: 'guard_protect', target: targetName});
                 
-                // 按下確定後，鎖定介面並提示
-                lockGuardUI();
+                // 🔥 [修改] 傳入 'protect'，代表我是守人，不是空守
+                lockGuardUI('protect'); 
+                
                 showToast(`已守護 ${targetName}，回合結束`);
             });
-            // 如果按取消，什麼事都不會發生，守衛可以重新選人
         }
         else {
             showToast("天黑請閉眼，現在不是你的行動時間。");
