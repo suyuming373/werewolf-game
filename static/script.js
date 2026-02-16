@@ -166,6 +166,20 @@ function startGame() {
 function startVoting() { socket.emit('start_voting', {room: myRoom}); }
 function goToNight() { socket.emit('go_to_night', {room: myRoom}); }
 
+function sendWolfChat() {
+    const input = document.getElementById('wolf-chat-input');
+    const msg = input.value.trim();
+    if (msg && myRoom) {
+        socket.emit('wolf_chat', { room: myRoom, msg: msg });
+        input.value = ''; // 清空輸入框
+    }
+}
+
+// 支援 Enter 鍵傳送
+document.getElementById('wolf-chat-input')?.addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') sendWolfChat();
+});
+
 // ================== 女巫藥水邏輯 ==================
 
 let selectedAction = null; // 記錄目前選了什麼藥水
@@ -565,6 +579,13 @@ socket.on('game_info', (data) => {
     addLog(`遊戲開始！你是 ${myRole}`);
 });
 
+socket.on('wolf_notification', (data) => {
+    // 確保只有狼人陣營會收到並顯示這則訊息
+    if (['狼人', '狼王'].includes(myRole) && isAlive) {
+        addLog(`[狼隊] ${data.msg}`);
+    }
+});
+
 socket.on('guard_selection', (data) => {
     const targetSpan = document.getElementById('guard-target');
     if (targetSpan) {
@@ -582,6 +603,8 @@ socket.on('phase_change', (data) => {
     const voteBtn = document.getElementById('btn-start-vote');
     const nightBtn = document.getElementById('btn-go-night');
     const abstainBtn = document.getElementById('btn-abstain');
+
+    const wolfArea = document.getElementById('wolf-area');
     const witchArea = document.getElementById('witch-area');
     const guardArea = document.getElementById('guard-area');
 
@@ -590,7 +613,8 @@ socket.on('phase_change', (data) => {
     if(voteBtn) voteBtn.classList.add('hidden');
     if(nightBtn) nightBtn.classList.add('hidden');
     if(abstainBtn) abstainBtn.classList.add('hidden');
-    
+
+    if (wolfArea) wolfArea.classList.add('hidden');
     if (witchArea) witchArea.classList.add('hidden');
     if (guardArea) guardArea.classList.add('hidden');
 
@@ -602,6 +626,11 @@ socket.on('phase_change', (data) => {
         // [修正 1] 重置狼刀目標 與 選擇狀態 (這行漏掉了)
         currentWolfTarget = null;
         selectedAction = null; 
+
+        // 🔥 只有活著的狼人陣營才能看到對話框
+        if (['狼人', '狼王'].includes(myRole) && isAlive) {
+            if (wolfArea) wolfArea.classList.remove('hidden');
+        }
 
         if (myRole === '女巫' && isAlive) {
             if(endBtn) {

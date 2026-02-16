@@ -175,6 +175,16 @@
             <p style="font-size: 0.8em; color: #aaa; margin-top: 10px;">(點擊頭像切換對象，不可連續守同一人)</p>
         </div>
 
+        <div id="wolf-area" class="card hidden" style="border: 1px solid #ff5252;">
+            <h4 style="color: #ff5252; margin:0 0 10px 0;">🐺 狼人陣營頻道</h4>
+            <div style="display: flex; gap: 5px;">
+                <input type="text" id="wolf-chat-input" placeholder="輸入對內訊息..." 
+                    style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #444; background: #222; color: white;">
+                <button onclick="sendWolfChat()" style="background: #ff5252; color: white; padding: 8px 15px;">傳送</button>
+            </div>
+            <p style="font-size: 0.8em; color: #888; margin-top: 8px;">(此訊息僅隊友可見，訊息將發送至下方日誌)</p>
+        </div>
+
         <div id="log-area"></div>
         <h3>玩家列表</h3>
         <div id="game-players"></div>
