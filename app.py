@@ -769,12 +769,12 @@ def handle_wolf_chat(data):
         print("❌ 錯誤：在房間中找不到對應的玩家資料 (SID 不匹配)")
         return
 
-    print(f"✅ 找到玩家: {player['username']}, 角色: {player['role']}")
+    print(f"✅ 找到玩家: {player['name']}, 角色: {player['role']}")
     
     # 嚴格檢查：必須完全符合你的角色字串
     if player['role'] in ['狼人', '狼王'] and player['is_alive'] and data.get('msg'):
         emit('wolf_chat_received', {
-            'user': player['username'],
+            'user': player['name'],
             'msg': data.get('msg').strip()
         }, room=room_id)
 
