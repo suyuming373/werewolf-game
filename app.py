@@ -749,20 +749,34 @@ def on_action(data):
 
 @socketio.on('wolf_chat')
 def handle_wolf_chat(data):
-    # 這是最強制性的 Print，如果這裡都沒印，代表訊息沒進來
     print("--- Wolf Chat Triggered ---")
     print(f"Data received: {data}")
     
-    room = data.get('room')
-    msg = data.get('msg', '').strip() 
+    # 確保 room 是字串格式，並檢查是否存在於 games 中
+    room_id = str(data.get('room'))
+    if room_id not in games:
+        print(f"❌ 錯誤：房間 {room_id} 不在 games 列表 {list(games.keys())} 中")
+        return
+
+    game = games[room_id]
+    # 🔍 打印目前房間內所有的 SID，看看你的 request.sid 在不在裡面
+    print(f"目前房間內的 SIDs: {list(game.players.keys())}")
+    print(f"當前請求的 SID: {request.sid}")
+
+    player = game.players.get(request.sid)
+
+    if not player:
+        print("❌ 錯誤：在房間中找不到對應的玩家資料 (SID 不匹配)")
+        return
+
+    print(f"✅ 找到玩家: {player['username']}, 角色: {player['role']}")
     
-    if room in games:
-        player = games[room].players.get(request.sid)
-        if player:
-             print(f"Player: {player['username']}, Role: {player['role']}")
-             # 如果你堅持不放寬限制，請確保這裡的判斷與 player['role'] 存的字串完全一致
-             if player['role'] in ['狼人', '狼王'] and player['is_alive'] and msg:
-                 emit('wolf_chat_received', {'user': player['username'], 'msg': msg}, room=room)
+    # 嚴格檢查：必須完全符合你的角色字串
+    if player['role'] in ['狼人', '狼王'] and player['is_alive'] and data.get('msg'):
+        emit('wolf_chat_received', {
+            'user': player['username'],
+            'msg': data.get('msg').strip()
+        }, room=room_id)
 
 @socketio.on('shoot_action')
 def on_shoot(data):
