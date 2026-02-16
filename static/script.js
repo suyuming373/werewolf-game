@@ -1008,7 +1008,13 @@ socket.on('connect', () => {
     console.log("連線成功！");
     addLog("[系統] 連線已恢復！");
     if (myName && myRoom) {
-        socket.emit('join', {username: myName, room: myRoom});
+        socket.emit('join', {username: myName, room: myRoom}); // 觸發重連
+        
+        // 🔥 強制讓標題恢復，不要卡在「載入中」
+        const title = document.getElementById('phase-title');
+        if (title && currentPhase !== "setup") {
+            title.innerText = (currentPhase === 'night') ? "🌙 天黑請閉眼" : "☀️ 天亮了";
+        }
     }
 });
 

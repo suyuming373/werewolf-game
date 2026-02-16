@@ -461,6 +461,9 @@ def on_join(data):
                         teammates.append({'name': p['name'], 'role': p['role']})
                 emit('wolf_teammates', {'teammates': teammates}, room=request.sid)
 
+            # 在補發遊戲狀態 (A-8) 的最後面加入這行
+            emit('update_players', {'players': game.get_player_list()}, room=request.sid)
+
             emit('action_result', {'msg': '⚡ 歡迎回來！已恢復連線。'}, room=request.sid)
 
     else:
